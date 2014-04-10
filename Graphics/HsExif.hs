@@ -13,7 +13,7 @@ parseFileExif filename = liftM parseExif $ B.readFile filename
 
 parseExif :: B.ByteString -> [(String, String)]
 parseExif contents = case fst (runGet getExif contents) of
-		Left msg -> [(msg, msg)]
+		Left msg -> [(msg, msg)] -- debug only, change that to [] later
 		Right v -> v
 
 getExif :: Get [(String,String)]
