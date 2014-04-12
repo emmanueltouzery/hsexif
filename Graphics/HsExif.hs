@@ -1,5 +1,7 @@
 module Graphics.HsExif (parseFileExif, parseExif) where
 
+-- TODO move to lazy binary+lazy bytestrings.
+-- for tests i can wrap a strict bytestring in a lazy one
 import Data.Binary.Strict.Get
 import qualified Data.ByteString as B
 import Control.Monad (liftM, unless)
@@ -8,13 +10,11 @@ import Data.Word
 
 -- see http://www.media.mit.edu/pia/Research/deepview/exif.html
 
-parseFileExif :: FilePath -> IO [(String, String)]
+parseFileExif :: FilePath -> IO (Either String [(String, String)])
 parseFileExif filename = liftM parseExif $ B.readFile filename
 
-parseExif :: B.ByteString -> [(String, String)]
-parseExif contents = case fst (runGet getExif contents) of
-		Left msg -> [(msg, msg)] -- debug only, change that to [] later
-		Right v -> v
+parseExif :: B.ByteString -> Either String [(String, String)]
+parseExif contents = fst $ runGet getExif contents
 
 getExif :: Get [(String,String)]
 getExif = do

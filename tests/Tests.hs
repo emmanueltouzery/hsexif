@@ -14,8 +14,8 @@ main = do
 
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
-	assertEqual "doesn't match" [] (parseExif imageContents)
+	assertEqual "doesn't match" (Left "Not a JPEG file") (parseExif imageContents)
 
 testBasic :: B.ByteString -> Spec
 testBasic imageContents = it "parses a simple JPEG" $
-	assertEqual "doesn't match" [] (parseExif imageContents)
+	assertEqual "doesn't match" (Right []) (parseExif imageContents)
