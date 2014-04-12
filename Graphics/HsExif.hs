@@ -1,4 +1,4 @@
-module Graphics.HsExif (parseFileExif, parseExif) where
+module Graphics.HsExif (ExifTag(..), parseFileExif, parseExif) where
 
 import Data.Binary.Strict.Get
 import qualified Data.ByteString as B
@@ -10,20 +10,20 @@ import Data.List
 
 -- see http://www.media.mit.edu/pia/Research/deepview/exif.html
 
-parseFileExif :: FilePath -> IO (Either String [(String, String)])
+parseFileExif :: FilePath -> IO (Either String [(ExifTag, String)])
 parseFileExif filename = liftM parseExif $ B.readFile filename
 
-parseExif :: B.ByteString -> Either String [(String, String)]
+parseExif :: B.ByteString -> Either String [(ExifTag, String)]
 parseExif contents = fst $ runGet getExif contents
 
-getExif :: Get [(String,String)]
+getExif :: Get [(ExifTag,String)]
 getExif = do
 	header <- getWord16be
 	unless (header == 0xffd8)
 		$ fail "Not a JPEG file"
 	findAndParseExifBlock
 
-findAndParseExifBlock :: Get [(String, String)]
+findAndParseExifBlock :: Get [(ExifTag, String)]
 findAndParseExifBlock = do
 	markerNumber <- getWord16be
 	dataSize <- liftM (fromIntegral . toInteger) getWord16be
@@ -41,7 +41,7 @@ getWord32 :: ByteAlign -> Get Word32
 getWord32 Intel = getWord32le
 getWord32 Motorola = getWord32be
 
-parseExifBlock :: Int -> Get [(String,String)]
+parseExifBlock :: Int -> Get [(ExifTag,String)]
 parseExifBlock blockLength = do
 	header <- getByteString 4
 	null <- liftM toInteger getWord16be
@@ -54,7 +54,6 @@ parseExifBlock blockLength = do
 	bytesReadNow <- bytesRead
 	skip $ (exifSubIfdOffset + tiffHeaderStart) - bytesReadNow
 	parseExifSubIfd byteAlign tiffHeaderStart
-	return []
 
 parseTiffHeader :: Get ByteAlign
 parseTiffHeader = do
@@ -79,13 +78,13 @@ parseIfd byteAlign tiffHeaderStart = do
 	let exifOffset = entryContents exifOffsetEntry
 	return exifOffset
 
-parseExifSubIfd :: ByteAlign -> Int -> Get ()
+parseExifSubIfd :: ByteAlign -> Int -> Get [(ExifTag,String)]
 parseExifSubIfd byteAlign tiffHeaderStart = do
 	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
 	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign tiffHeaderStart) [1..dirEntriesCount]
 	--fail $ show ifdEntries
 	decodedIfEntries <- mapM (decodeEntry byteAlign tiffHeaderStart) ifdEntries
-	fail $ show decodedIfEntries
+	return decodedIfEntries
 
 data IfEntry = IfEntry
 	{
@@ -143,7 +142,7 @@ data ExifTag = ExposureTime
 	| FileSource
 	| SceneType
 	| Unknown Word16
-	deriving Show
+	deriving (Eq, Show)
 
 getExifTag :: Word16 -> ExifTag
 getExifTag entryTag = case entryTag of
