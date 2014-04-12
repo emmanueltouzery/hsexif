@@ -191,10 +191,16 @@ decodeEntry byteAlign tiffHeaderStart entry = do
 	-- because I only know how to skip ahead, I hope the entries
 	-- are always sorted in order of the offsets to their values...
 	tagValue <- case entryFormat entry of
-		2 -> do
+		2 -> do -- ascii string
 			curPos <- bytesRead
 			skip $ contentsInt + tiffHeaderStart - curPos
 			valStr <- liftM Char8.unpack (getByteString (componentsInt-1))
 			return valStr
+		5 -> do -- unsigned rational
+			curPos <- bytesRead
+			skip $ contentsInt + tiffHeaderStart - curPos
+			numerator <- getWord32 byteAlign
+			denominator <- getWord32 byteAlign
+			return $ show numerator ++ "/" ++ show denominator
 		_ -> return $ show contentsInt
 	return (tagKey, tagValue)
