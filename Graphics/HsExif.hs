@@ -190,26 +190,31 @@ decodeEntry byteAlign tiffHeaderStart entry = do
 	-- are always sorted in order of the offsets to their values...
 	-- (maybe lookAhead could help here?)
 	tagValue <- case entryFormat entry of
+		1 -> return $ show contentsInt -- unsigned byte
 		2 -> do -- ascii string
 			curPos <- bytesRead
 			skip $ contentsInt + tiffHeaderStart - curPos
 			valStr <- liftM Char8.unpack (getByteString (componentsInt-1))
 			return valStr
+		3 -> return $ show contentsInt -- unsigned short
+		4 -> return $ show contentsInt -- unsigned long
 		5 -> do -- unsigned rational
 			curPos <- bytesRead
 			skip $ contentsInt + tiffHeaderStart - curPos
 			numerator <- getWord32 byteAlign
 			denominator <- getWord32 byteAlign
 			return $ show numerator ++ "/" ++ show denominator
+		6 -> return $ show $ word32toint32 $ entryContents entry -- signed byte
+		7 -> return $ show contentsInt -- undefined
+		8 -> return $ show $ word32toint32 $ entryContents entry -- signed short
+		9 -> return $ show $ word32toint32 $ entryContents entry -- signed long
 		10 -> do -- signed rational
 			curPos <- bytesRead
 			skip $ contentsInt + tiffHeaderStart - curPos
 			numerator <- liftM word32toint32 (getWord32 byteAlign)
 			denominator <- liftM word32toint32 (getWord32 byteAlign)
 			return $ show numerator ++ "/" ++ show denominator
-		3 -> return $ show contentsInt -- unsigned short
-		4 -> return $ show contentsInt -- unsigned long
-		7 -> return $ show contentsInt -- undefined
+		-- TODO decode float values, 11 single float and 12 double float but I'd like tests
 		_ -> return $ "type: " ++ show (entryFormat entry) ++ " -> " ++ show contentsInt
 	return (tagKey, tagValue)
 
