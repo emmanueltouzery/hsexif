@@ -1,7 +1,5 @@
 module Graphics.HsExif (parseFileExif, parseExif) where
 
--- TODO move to lazy binary+lazy bytestrings.
--- for tests i can wrap a strict bytestring in a lazy one
 import Data.Binary.Strict.Get
 import qualified Data.ByteString as B
 import Control.Monad (liftM, unless)
