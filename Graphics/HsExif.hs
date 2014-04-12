@@ -48,12 +48,12 @@ parseExifBlock blockLength = do
 		$ fail "invalid EXIF header"
 	tiffHeaderStart <- bytesRead
 	byteAlign <- parseTiffHeader
-	exifSubIfdOffset <- liftM (fromIntegral . toInteger) (parseIfd byteAlign)
+	exifSubIfdOffset <- liftM (fromIntegral . toInteger) (parseIfd byteAlign tiffHeaderStart)
 	-- skip to the exif offset
 	bytesReadNow <- bytesRead
 	--fail $ show exifSubIfdOffset
 	skip $ (exifSubIfdOffset + tiffHeaderStart) - bytesReadNow
-	parseExifSubIfd byteAlign
+	parseExifSubIfd byteAlign tiffHeaderStart
 	return []
 
 parseTiffHeader :: Get ByteAlign
@@ -69,10 +69,10 @@ parseTiffHeader = do
 	skip $ ifdOffset - 8
 	return byteAlign
 
-parseIfd :: ByteAlign -> Get Word32
-parseIfd byteAlign = do
+parseIfd :: ByteAlign -> Int -> Get Word32
+parseIfd byteAlign tiffHeaderStart = do
 	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
-	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign) [1..dirEntriesCount]
+	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign tiffHeaderStart) [1..dirEntriesCount]
 	--fail $ show ifdEntries
 	let exifOffsetEntry = case find (\e -> entryTag e == 0x8769) ifdEntries of
 		Just x -> x
@@ -80,12 +80,13 @@ parseIfd byteAlign = do
 	let exifOffset = entryContents exifOffsetEntry
 	return exifOffset
 
-parseExifSubIfd :: ByteAlign -> Get ()
-parseExifSubIfd byteAlign = do
+parseExifSubIfd :: ByteAlign -> Int -> Get ()
+parseExifSubIfd byteAlign tiffHeaderStart = do
 	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
 	-- fail $ show dirEntriesCount
-	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign) [1..dirEntriesCount]
-	fail $ show ifdEntries
+	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign tiffHeaderStart) [1..dirEntriesCount]
+	decodedIfEntries <- mapM (decodeEntry byteAlign tiffHeaderStart) ifdEntries
+	fail $ show decodedIfEntries
 
 data IfEntry = IfEntry
 	{
@@ -95,8 +96,8 @@ data IfEntry = IfEntry
 		entryContents :: Word32
 	} deriving Show
 
-parseIfEntry :: ByteAlign -> Get IfEntry
-parseIfEntry byteAlign = do
+parseIfEntry :: ByteAlign -> Int -> Get IfEntry
+parseIfEntry byteAlign tiffHeaderStart = do
 	tagNumber <- getWord16 byteAlign
 	dataFormat <- getWord16 byteAlign
 	numComponents <- getWord32 byteAlign
@@ -108,3 +109,92 @@ parseIfEntry byteAlign = do
 			entryNoComponents = numComponents,
 			entryContents = value
 		}
+
+data ExifTag = ExposureTime
+	| FNumber
+	| ExposureProgram
+	| ISOSpeedRatings
+	| ExifVersion
+	| DateTimeOriginal
+	| DateTimeDigitized
+	| ComponentConfiguration
+	| CompressedBitsPerPixel
+	| ShutterSpeedValue
+	| ApertureValue
+	| BrightnessValue
+	| ExposureBiasValue
+	| MaxApertureValue
+	| SubjectDistance
+	| MeteringMode
+	| LightSource
+	| Flash
+	| FocalLength
+	| MakerNote
+	| UserComment
+	| FlashPixVersion
+	| ColorSpace
+	| ExifImageWidth
+	| ExifImageHeight
+	| RelatedSoundFile
+	| ExifInteroperabilityOffset
+	| FocalPlaneXResolution
+	| FocalPlaneYResolution
+	| FocalPlaneResolutionUnit
+	| SensingMethod
+	| FileSource
+	| SceneType
+	| Unknown Word16
+	deriving Show
+
+getExifTag :: Word16 -> ExifTag
+getExifTag entryTag = case entryTag of
+	0x829a -> ExposureTime
+	0x829d -> FNumber
+	0x8822 -> ExposureProgram
+	0x8827 -> ISOSpeedRatings
+	0x9000 -> ExifVersion
+	0x9003 -> DateTimeOriginal
+	0x9004 -> DateTimeDigitized
+	0x9101 -> ComponentConfiguration
+	0x9102 -> CompressedBitsPerPixel
+	0x9201 -> ShutterSpeedValue
+	0x9202 -> ApertureValue
+	0x9203 -> BrightnessValue
+	0x9204 -> ExposureBiasValue
+	0x9205 -> MaxApertureValue
+	0x9206 -> SubjectDistance
+	0x9207 -> MeteringMode
+	0x9208 -> LightSource
+	0x9209 -> Flash
+	0x920a -> FocalLength
+	0x927c -> MakerNote
+	0x9286 -> UserComment
+	0xa000 -> FlashPixVersion
+	0xa001 -> ColorSpace
+	0xa002 -> ExifImageWidth
+	0xa003 -> ExifImageHeight
+	0xa004 -> RelatedSoundFile
+	0xa005 -> ExifInteroperabilityOffset
+	0xa20e -> FocalPlaneXResolution
+	0xa20f -> FocalPlaneYResolution
+	0xa210 -> FocalPlaneResolutionUnit
+	0xa217 -> SensingMethod
+	0xa300 -> FileSource
+	0xa301 -> SceneType
+	_ -> Unknown entryTag
+
+decodeEntry :: ByteAlign -> Int -> IfEntry -> Get (ExifTag, String)
+decodeEntry byteAlign tiffHeaderStart entry = do
+	let tagKey = getExifTag $ entryTag entry
+	let contentsInt = fromIntegral $ toInteger $ entryContents entry
+	let componentsInt = fromIntegral $ toInteger $ entryNoComponents entry
+	-- because I only know how to skip ahead, I hope the entries
+	-- are always sorted in order of the offsets to their values...
+	tagValue <- case entryFormat entry of
+		2 -> do
+			curPos <- bytesRead
+			skip $ contentsInt + tiffHeaderStart - curPos
+			valStr <- liftM Char8.unpack (getByteString (componentsInt-1))
+			return valStr
+		_ -> return $ show contentsInt
+	return (tagKey, tagValue)
