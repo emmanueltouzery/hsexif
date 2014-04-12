@@ -51,7 +51,6 @@ parseExifBlock blockLength = do
 	exifSubIfdOffset <- liftM (fromIntegral . toInteger) (parseIfd byteAlign tiffHeaderStart)
 	-- skip to the exif offset
 	bytesReadNow <- bytesRead
-	--fail $ show exifSubIfdOffset
 	skip $ (exifSubIfdOffset + tiffHeaderStart) - bytesReadNow
 	parseExifSubIfd byteAlign tiffHeaderStart
 	return []
@@ -73,7 +72,6 @@ parseIfd :: ByteAlign -> Int -> Get Word32
 parseIfd byteAlign tiffHeaderStart = do
 	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
 	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign tiffHeaderStart) [1..dirEntriesCount]
-	--fail $ show ifdEntries
 	let exifOffsetEntry = case find (\e -> entryTag e == 0x8769) ifdEntries of
 		Just x -> x
 		Nothing -> error "Can't find the exif offset in the IFD"
@@ -83,8 +81,8 @@ parseIfd byteAlign tiffHeaderStart = do
 parseExifSubIfd :: ByteAlign -> Int -> Get ()
 parseExifSubIfd byteAlign tiffHeaderStart = do
 	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
-	-- fail $ show dirEntriesCount
 	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign tiffHeaderStart) [1..dirEntriesCount]
+	--fail $ show ifdEntries
 	decodedIfEntries <- mapM (decodeEntry byteAlign tiffHeaderStart) ifdEntries
 	fail $ show decodedIfEntries
 
@@ -190,6 +188,7 @@ decodeEntry byteAlign tiffHeaderStart entry = do
 	let componentsInt = fromIntegral $ toInteger $ entryNoComponents entry
 	-- because I only know how to skip ahead, I hope the entries
 	-- are always sorted in order of the offsets to their values...
+	-- (maybe lookAhead could help here?)
 	tagValue <- case entryFormat entry of
 		2 -> do -- ascii string
 			curPos <- bytesRead
@@ -202,5 +201,8 @@ decodeEntry byteAlign tiffHeaderStart entry = do
 			numerator <- getWord32 byteAlign
 			denominator <- getWord32 byteAlign
 			return $ show numerator ++ "/" ++ show denominator
-		_ -> return $ show contentsInt
+		3 -> return $ show contentsInt -- unsigned short
+		4 -> return $ show contentsInt -- unsigned long
+		7 -> return $ show contentsInt -- undefined
+		_ -> return $ "type: " ++ show (entryFormat entry) ++ " -> " ++ show contentsInt
 	return (tagKey, tagValue)
