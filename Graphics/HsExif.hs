@@ -5,6 +5,7 @@ import qualified Data.ByteString as B
 import Control.Monad (liftM, unless)
 import qualified Data.ByteString.Char8 as Char8
 import Data.Word
+import Data.List
 
 -- see http://www.media.mit.edu/pia/Research/deepview/exif.html
 
@@ -46,7 +47,11 @@ parseExifBlock blockLength = do
 	unless (header == Char8.pack "Exif" && null == 0)
 		$ fail "invalid EXIF header"
 	byteAlign <- parseTiffHeader
-	parseIfd byteAlign
+	exifSubIfdOffset <- liftM (fromIntegral . toInteger) (parseIfd byteAlign)
+	-- skip to the exif offset
+	bytesReadNow <- bytesRead
+	skip $ exifSubIfdOffset - bytesReadNow
+	--parseExifSubIfd byteAlign
 	return []
 
 parseTiffHeader :: Get ByteAlign
@@ -62,7 +67,22 @@ parseTiffHeader = do
 	skip $ ifdOffset - 8
 	return byteAlign
 
-parseIfd :: ByteAlign -> Get ()
+parseIfd :: ByteAlign -> Get Word32
 parseIfd byteAlign = do
-	dirEntriesCount <- liftM toInteger (getWord32 byteAlign)
-	return ()
+	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
+	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign) [1..dirEntriesCount]
+	let exifOffsetEntry = case find (\e -> tag e == 0x8769) ifdEntries of
+		Just x -> x
+		Nothing -> error "Can't find the exif offset in the IFD"
+	let exifOffset = contents exifOffsetEntry
+	return exifOffset
+
+data IfEntry = IfEntry { tag :: Word16, contents :: Word32 }
+
+parseIfEntry :: ByteAlign -> Get IfEntry
+parseIfEntry byteAlign = do
+	tagNumber <- getWord16 byteAlign
+	dataFormat <- getWord16 byteAlign
+	numComponents <- getWord32 byteAlign
+	value <- getWord32 byteAlign
+	return IfEntry { tag = tagNumber, contents = value }
