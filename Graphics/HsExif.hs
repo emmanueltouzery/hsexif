@@ -46,12 +46,14 @@ parseExifBlock blockLength = do
 	null <- liftM toInteger getWord16be
 	unless (header == Char8.pack "Exif" && null == 0)
 		$ fail "invalid EXIF header"
+	tiffHeaderStart <- bytesRead
 	byteAlign <- parseTiffHeader
 	exifSubIfdOffset <- liftM (fromIntegral . toInteger) (parseIfd byteAlign)
 	-- skip to the exif offset
 	bytesReadNow <- bytesRead
-	skip $ exifSubIfdOffset - bytesReadNow
-	--parseExifSubIfd byteAlign
+	--fail $ show exifSubIfdOffset
+	skip $ (exifSubIfdOffset + tiffHeaderStart) - bytesReadNow
+	parseExifSubIfd byteAlign
 	return []
 
 parseTiffHeader :: Get ByteAlign
@@ -71,13 +73,27 @@ parseIfd :: ByteAlign -> Get Word32
 parseIfd byteAlign = do
 	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
 	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign) [1..dirEntriesCount]
-	let exifOffsetEntry = case find (\e -> tag e == 0x8769) ifdEntries of
+	--fail $ show ifdEntries
+	let exifOffsetEntry = case find (\e -> entryTag e == 0x8769) ifdEntries of
 		Just x -> x
 		Nothing -> error "Can't find the exif offset in the IFD"
-	let exifOffset = contents exifOffsetEntry
+	let exifOffset = entryContents exifOffsetEntry
 	return exifOffset
 
-data IfEntry = IfEntry { tag :: Word16, contents :: Word32 }
+parseExifSubIfd :: ByteAlign -> Get ()
+parseExifSubIfd byteAlign = do
+	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
+	-- fail $ show dirEntriesCount
+	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign) [1..dirEntriesCount]
+	fail $ show ifdEntries
+
+data IfEntry = IfEntry
+	{
+		entryTag :: Word16,
+		entryFormat :: Word16,
+		entryNoComponents :: Word32,
+		entryContents :: Word32
+	} deriving Show
 
 parseIfEntry :: ByteAlign -> Get IfEntry
 parseIfEntry byteAlign = do
@@ -85,4 +101,10 @@ parseIfEntry byteAlign = do
 	dataFormat <- getWord16 byteAlign
 	numComponents <- getWord32 byteAlign
 	value <- getWord32 byteAlign
-	return IfEntry { tag = tagNumber, contents = value }
+	return IfEntry
+		{
+			entryTag = tagNumber,
+			entryFormat = dataFormat,
+			entryNoComponents = numComponents,
+			entryContents = value
+		}
