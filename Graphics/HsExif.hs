@@ -5,6 +5,7 @@ import qualified Data.ByteString as B
 import Control.Monad (liftM, unless)
 import qualified Data.ByteString.Char8 as Char8
 import Data.Word
+import Data.Int
 import Data.List
 
 -- see http://www.media.mit.edu/pia/Research/deepview/exif.html
@@ -201,8 +202,17 @@ decodeEntry byteAlign tiffHeaderStart entry = do
 			numerator <- getWord32 byteAlign
 			denominator <- getWord32 byteAlign
 			return $ show numerator ++ "/" ++ show denominator
+		10 -> do -- signed rational
+			curPos <- bytesRead
+			skip $ contentsInt + tiffHeaderStart - curPos
+			numerator <- liftM word32toint32 (getWord32 byteAlign)
+			denominator <- liftM word32toint32 (getWord32 byteAlign)
+			return $ show numerator ++ "/" ++ show denominator
 		3 -> return $ show contentsInt -- unsigned short
 		4 -> return $ show contentsInt -- unsigned long
 		7 -> return $ show contentsInt -- undefined
 		_ -> return $ "type: " ++ show (entryFormat entry) ++ " -> " ++ show contentsInt
 	return (tagKey, tagValue)
+
+word32toint32 :: Word32 -> Int32
+word32toint32 word = fromIntegral word :: Int32
