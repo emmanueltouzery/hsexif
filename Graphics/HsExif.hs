@@ -233,6 +233,7 @@ getDateTimeOriginal exifData = do
 	dateStr <- Map.lookup DateTimeOriginal exifData
 	-- i know more elegant ways to code this.. parsec, regex, text..
 	-- but i don't want to bring in too many dependencies to this library.
+	-- the date is like "YYYY:MM:DD HH:MM:SS"
 	return $ LocalTime
 		(fromGregorian (read $ take 4 dateStr) (read $ take 2 . drop 5 $ dateStr) (read $ take 2 . drop 8 $ dateStr))
 		(TimeOfDay (read $ take 2 . drop 11 $ dateStr) (read $ take 2 . drop 14 $ dateStr) (read $ take 2 . drop 17 $ dateStr))
