@@ -2,7 +2,7 @@ module Graphics.HsExif (ExifTag(..), parseFileExif, parseExif) where
 
 import Data.Binary.Strict.Get
 import qualified Data.ByteString as B
-import Control.Monad (liftM, unless)
+import Control.Monad (liftM, unless, when)
 import qualified Data.ByteString.Char8 as Char8
 import Data.Word
 import Data.Int
@@ -30,6 +30,9 @@ findAndParseExifBlock = do
 	dataSize <- liftM (fromIntegral . toInteger) getWord16be
 	case markerNumber of
 		0xffe1 -> parseExifBlock dataSize
+		-- ffda is Start Of Stream => image
+		-- I expect no more EXIF data after this point.
+		0xffda -> fail "No EXIF in JPEG" 
 		_ -> skip (dataSize-2) >> findAndParseExifBlock
 
 data ByteAlign = Intel | Motorola

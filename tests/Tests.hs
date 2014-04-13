@@ -7,14 +7,20 @@ import qualified Data.ByteString as B
 main :: IO ()
 main = do
 	imageContents <- B.readFile "tests/test.jpg"
+	noExif <- B.readFile "tests/noexif.jpg"
 	png <- B.readFile "tests/test.png"
 	hspec $ do
 		describe "not a JPG" $ testNotAJpeg png
+		describe "no EXIF" $ testNoExif noExif
 		describe "basic parsing" $ testBasic imageContents
 
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
 	assertEqual "doesn't match" (Left "Not a JPEG file") (parseExif imageContents)
+
+testNoExif :: B.ByteString -> Spec
+testNoExif imageContents = it "returns empty list if no EXIF" $
+	assertEqual "doesn't match" (Left "No EXIF in JPEG") (parseExif imageContents)
 
 testBasic :: B.ByteString -> Spec
 testBasic imageContents = it "parses a simple JPEG" $
