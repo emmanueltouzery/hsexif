@@ -7,6 +7,7 @@ import qualified Data.ByteString.Char8 as Char8
 import Data.Word
 import Data.Int
 import Data.List
+import Data.Maybe (fromMaybe)
 
 -- see http://www.media.mit.edu/pia/Research/deepview/exif.html
 
@@ -72,9 +73,8 @@ parseIfd :: ByteAlign -> Int -> Get Word32
 parseIfd byteAlign tiffHeaderStart = do
 	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
 	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign tiffHeaderStart) [1..dirEntriesCount]
-	let exifOffsetEntry = case find (\e -> entryTag e == 0x8769) ifdEntries of
-		Just x -> x
-		Nothing -> error "Can't find the exif offset in the IFD"
+	let exifOffsetEntry = fromMaybe (error "Can't find the exif offset in the IFD")
+		(find (\ e -> entryTag e == 34665) ifdEntries)
 	let exifOffset = entryContents exifOffsetEntry
 	return exifOffset
 
@@ -82,9 +82,7 @@ parseExifSubIfd :: ByteAlign -> Int -> Get [(ExifTag,String)]
 parseExifSubIfd byteAlign tiffHeaderStart = do
 	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
 	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign tiffHeaderStart) [1..dirEntriesCount]
-	--fail $ show ifdEntries
-	decodedIfEntries <- mapM (decodeEntry byteAlign tiffHeaderStart) ifdEntries
-	return decodedIfEntries
+	mapM (decodeEntry byteAlign tiffHeaderStart) ifdEntries
 
 data IfEntry = IfEntry
 	{
@@ -194,8 +192,7 @@ decodeEntry byteAlign tiffHeaderStart entry = do
 		2 -> do -- ascii string
 			curPos <- bytesRead
 			skip $ contentsInt + tiffHeaderStart - curPos
-			valStr <- liftM Char8.unpack (getByteString (componentsInt-1))
-			return valStr
+			liftM Char8.unpack (getByteString (componentsInt-1))
 		3 -> return $ show contentsInt -- unsigned short
 		4 -> return $ show contentsInt -- unsigned long
 		5 -> do -- unsigned rational
