@@ -1,3 +1,4 @@
+-- | Ability to work with the EXIF data contained in JPEG files.
 module Graphics.HsExif (ExifTag(..), parseFileExif, parseExif, getDateTimeOriginal) where
 
 import Data.Binary.Get
@@ -15,9 +16,11 @@ import Data.Time.Calendar
 
 -- see http://www.media.mit.edu/pia/Research/deepview/exif.html
 
+-- | Read EXIF data from the file you give. It's a key-value map.
 parseFileExif :: FilePath -> IO (Either String (Map ExifTag String))
 parseFileExif filename = liftM parseExif $ B.readFile filename
 
+-- | Read EXIF data from a lazy bytestring.
 parseExif :: B.ByteString -> Either String (Map ExifTag String)
 parseExif contents = case runGetOrFail getExif contents of
 		Left (bs,offset,errorMsg) -> Left errorMsg
@@ -228,6 +231,8 @@ decodeEntry byteAlign tiffHeaderStart entry = do
 word32toint32 :: Word32 -> Int32
 word32toint32 word = fromIntegral word :: Int32
 
+-- | Extract the date and time when the picture was taken
+-- from the EXIF information.
 getDateTimeOriginal :: Map ExifTag String -> Maybe LocalTime
 getDateTimeOriginal exifData = do 
 	dateStr <- Map.lookup DateTimeOriginal exifData
