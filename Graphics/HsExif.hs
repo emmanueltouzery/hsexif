@@ -8,23 +8,25 @@ import Data.Word
 import Data.Int
 import Data.List
 import Data.Maybe (fromMaybe)
+import qualified Data.Map as Map
+import Data.Map (Map)
 
 -- see http://www.media.mit.edu/pia/Research/deepview/exif.html
 
-parseFileExif :: FilePath -> IO (Either String [(ExifTag, String)])
+parseFileExif :: FilePath -> IO (Either String (Map ExifTag String))
 parseFileExif filename = liftM parseExif $ B.readFile filename
 
-parseExif :: B.ByteString -> Either String [(ExifTag, String)]
+parseExif :: B.ByteString -> Either String (Map ExifTag String)
 parseExif contents = fst $ runGet getExif contents
 
-getExif :: Get [(ExifTag,String)]
+getExif :: Get (Map ExifTag String)
 getExif = do
 	header <- getWord16be
 	unless (header == 0xffd8)
 		$ fail "Not a JPEG file"
 	findAndParseExifBlock
 
-findAndParseExifBlock :: Get [(ExifTag, String)]
+findAndParseExifBlock :: Get (Map ExifTag String)
 findAndParseExifBlock = do
 	markerNumber <- getWord16be
 	dataSize <- liftM (fromIntegral . toInteger) getWord16be
@@ -45,7 +47,7 @@ getWord32 :: ByteAlign -> Get Word32
 getWord32 Intel = getWord32le
 getWord32 Motorola = getWord32be
 
-parseExifBlock :: Int -> Get [(ExifTag,String)]
+parseExifBlock :: Int -> Get (Map ExifTag String)
 parseExifBlock blockLength = do
 	header <- getByteString 4
 	null <- liftM toInteger getWord16be
@@ -81,11 +83,12 @@ parseIfd byteAlign tiffHeaderStart = do
 	let exifOffset = entryContents exifOffsetEntry
 	return exifOffset
 
-parseExifSubIfd :: ByteAlign -> Int -> Get [(ExifTag,String)]
+parseExifSubIfd :: ByteAlign -> Int -> Get (Map ExifTag String)
 parseExifSubIfd byteAlign tiffHeaderStart = do
 	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
 	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign tiffHeaderStart) [1..dirEntriesCount]
-	mapM (decodeEntry byteAlign tiffHeaderStart) ifdEntries
+	list <- mapM (decodeEntry byteAlign tiffHeaderStart) ifdEntries
+	return $ Map.fromList list
 
 data IfEntry = IfEntry
 	{
@@ -143,7 +146,7 @@ data ExifTag = ExposureTime
 	| FileSource
 	| SceneType
 	| Unknown Word16
-	deriving (Eq, Show)
+	deriving (Eq, Ord, Show)
 
 getExifTag :: Word16 -> ExifTag
 getExifTag entryTag = case entryTag of
@@ -220,3 +223,7 @@ decodeEntry byteAlign tiffHeaderStart entry = do
 
 word32toint32 :: Word32 -> Int32
 word32toint32 word = fromIntegral word :: Int32
+-- 
+-- getDateTimeOriginal :: Map ExifTag String -> Maybe LocalDate
+-- getDateTimeOriginal exifData = do 
+-- 	dateStr <- Map.lookup DateTimeOriginal exifData
