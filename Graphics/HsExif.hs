@@ -1,4 +1,4 @@
-module Graphics.HsExif (ExifTag(..), parseFileExif, parseExif) where
+module Graphics.HsExif (ExifTag(..), parseFileExif, parseExif, getDateTimeOriginal) where
 
 import Data.Binary.Strict.Get
 import qualified Data.ByteString as B
@@ -10,6 +10,8 @@ import Data.List
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as Map
 import Data.Map (Map)
+import Data.Time.LocalTime
+import Data.Time.Calendar
 
 -- see http://www.media.mit.edu/pia/Research/deepview/exif.html
 
@@ -223,7 +225,12 @@ decodeEntry byteAlign tiffHeaderStart entry = do
 
 word32toint32 :: Word32 -> Int32
 word32toint32 word = fromIntegral word :: Int32
--- 
--- getDateTimeOriginal :: Map ExifTag String -> Maybe LocalDate
--- getDateTimeOriginal exifData = do 
--- 	dateStr <- Map.lookup DateTimeOriginal exifData
+
+getDateTimeOriginal :: Map ExifTag String -> Maybe LocalTime
+getDateTimeOriginal exifData = do 
+	dateStr <- Map.lookup DateTimeOriginal exifData
+	-- i know more elegant ways to code this.. parsec, regex, text..
+	-- but i don't want to bring in too many dependencies to this library.
+	return $ LocalTime
+		(fromGregorian (read $ take 4 dateStr) (read $ take 2 . drop 5 $ dateStr) (read $ take 2 . drop 8 $ dateStr))
+		(TimeOfDay (read $ take 2 . drop 11 $ dateStr) (read $ take 2 . drop 14 $ dateStr) (read $ take 2 . drop 17 $ dateStr))
