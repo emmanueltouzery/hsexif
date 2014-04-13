@@ -2,7 +2,7 @@ import Test.Hspec
 import Test.HUnit
 
 import Graphics.HsExif
-import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as B
 import qualified Data.Map as Map
 import Data.Time.LocalTime
 import Data.Time.Calendar

@@ -1,7 +1,7 @@
 module Graphics.HsExif (ExifTag(..), parseFileExif, parseExif, getDateTimeOriginal) where
 
-import Data.Binary.Strict.Get
-import qualified Data.ByteString as B
+import Data.Binary.Get
+import qualified Data.ByteString.Lazy as B
 import Control.Monad (liftM, unless, when)
 import qualified Data.ByteString.Char8 as Char8
 import Data.Word
@@ -19,7 +19,9 @@ parseFileExif :: FilePath -> IO (Either String (Map ExifTag String))
 parseFileExif filename = liftM parseExif $ B.readFile filename
 
 parseExif :: B.ByteString -> Either String (Map ExifTag String)
-parseExif contents = fst $ runGet getExif contents
+parseExif contents = case runGetOrFail getExif contents of
+		Left (bs,offset,errorMsg) -> Left errorMsg
+		Right (bs,offset,result) -> Right result
 
 getExif :: Get (Map ExifTag String)
 getExif = do
@@ -55,11 +57,11 @@ parseExifBlock blockLength = do
 	null <- liftM toInteger getWord16be
 	unless (header == Char8.pack "Exif" && null == 0)
 		$ fail "invalid EXIF header"
-	tiffHeaderStart <- bytesRead
+	tiffHeaderStart <- liftM fromIntegral bytesRead
 	byteAlign <- parseTiffHeader
 	exifSubIfdOffset <- liftM (fromIntegral . toInteger) (parseIfd byteAlign tiffHeaderStart)
 	-- skip to the exif offset
-	bytesReadNow <- bytesRead
+	bytesReadNow <- liftM fromIntegral bytesRead
 	skip $ (exifSubIfdOffset + tiffHeaderStart) - bytesReadNow
 	parseExifSubIfd byteAlign tiffHeaderStart
 
@@ -94,10 +96,10 @@ parseExifSubIfd byteAlign tiffHeaderStart = do
 
 data IfEntry = IfEntry
 	{
-		entryTag :: Word16,
-		entryFormat :: Word16,
-		entryNoComponents :: Word32,
-		entryContents :: Word32
+		entryTag :: !Word16,
+		entryFormat :: !Word16,
+		entryNoComponents :: !Word32,
+		entryContents :: !Word32
 	} deriving Show
 
 parseIfEntry :: ByteAlign -> Int -> Get IfEntry
@@ -198,13 +200,13 @@ decodeEntry byteAlign tiffHeaderStart entry = do
 	tagValue <- case entryFormat entry of
 		1 -> return $ show contentsInt -- unsigned byte
 		2 -> do -- ascii string
-			curPos <- bytesRead
+			curPos <- liftM fromIntegral bytesRead
 			skip $ contentsInt + tiffHeaderStart - curPos
 			liftM Char8.unpack (getByteString (componentsInt-1))
 		3 -> return $ show contentsInt -- unsigned short
 		4 -> return $ show contentsInt -- unsigned long
 		5 -> do -- unsigned rational
-			curPos <- bytesRead
+			curPos <- liftM fromIntegral bytesRead
 			skip $ contentsInt + tiffHeaderStart - curPos
 			numerator <- getWord32 byteAlign
 			denominator <- getWord32 byteAlign
@@ -214,7 +216,7 @@ decodeEntry byteAlign tiffHeaderStart entry = do
 		8 -> return $ show $ word32toint32 $ entryContents entry -- signed short
 		9 -> return $ show $ word32toint32 $ entryContents entry -- signed long
 		10 -> do -- signed rational
-			curPos <- bytesRead
+			curPos <- liftM fromIntegral bytesRead
 			skip $ contentsInt + tiffHeaderStart - curPos
 			numerator <- liftM word32toint32 (getWord32 byteAlign)
 			denominator <- liftM word32toint32 (getWord32 byteAlign)
