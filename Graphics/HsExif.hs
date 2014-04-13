@@ -3,7 +3,7 @@ module Graphics.HsExif (ExifTag(..), parseFileExif, parseExif, getDateTimeOrigin
 
 import Data.Binary.Get
 import qualified Data.ByteString.Lazy as B
-import Control.Monad (liftM, unless, when)
+import Control.Monad (liftM, unless)
 import qualified Data.ByteString.Char8 as Char8
 import Data.Word
 import Data.Int
@@ -23,8 +23,8 @@ parseFileExif filename = liftM parseExif $ B.readFile filename
 -- | Read EXIF data from a lazy bytestring.
 parseExif :: B.ByteString -> Either String (Map ExifTag String)
 parseExif contents = case runGetOrFail getExif contents of
-		Left (bs,offset,errorMsg) -> Left errorMsg
-		Right (bs,offset,result) -> Right result
+		Left (_,_,errorMsg) -> Left errorMsg
+		Right (_,_,result) -> Right result
 
 getExif :: Get (Map ExifTag String)
 getExif = do
@@ -38,7 +38,7 @@ findAndParseExifBlock = do
 	markerNumber <- getWord16be
 	dataSize <- liftM (fromIntegral . toInteger) getWord16be
 	case markerNumber of
-		0xffe1 -> parseExifBlock dataSize
+		0xffe1 -> parseExifBlock
 		-- ffda is Start Of Stream => image
 		-- I expect no more EXIF data after this point.
 		0xffda -> fail "No EXIF in JPEG" 
@@ -54,15 +54,15 @@ getWord32 :: ByteAlign -> Get Word32
 getWord32 Intel = getWord32le
 getWord32 Motorola = getWord32be
 
-parseExifBlock :: Int -> Get (Map ExifTag String)
-parseExifBlock blockLength = do
+parseExifBlock :: Get (Map ExifTag String)
+parseExifBlock = do
 	header <- getByteString 4
-	null <- liftM toInteger getWord16be
-	unless (header == Char8.pack "Exif" && null == 0)
+	nul <- liftM toInteger getWord16be
+	unless (header == Char8.pack "Exif" && nul == 0)
 		$ fail "invalid EXIF header"
 	tiffHeaderStart <- liftM fromIntegral bytesRead
 	byteAlign <- parseTiffHeader
-	exifSubIfdOffset <- liftM (fromIntegral . toInteger) (parseIfd byteAlign tiffHeaderStart)
+	exifSubIfdOffset <- liftM (fromIntegral . toInteger) (parseIfd byteAlign)
 	-- skip to the exif offset
 	bytesReadNow <- liftM fromIntegral bytesRead
 	skip $ (exifSubIfdOffset + tiffHeaderStart) - bytesReadNow
@@ -74,6 +74,7 @@ parseTiffHeader = do
 	let byteAlign = case Char8.unpack byteAlignV of
 		"II" -> Intel
 		"MM" -> Motorola
+		_ -> error "Unknown byte alignment"
 	alignControl <- liftM toInteger (getWord16 byteAlign)
 	unless (alignControl == 0x2a)
 		$ fail "exif byte alignment mismatch"
@@ -81,10 +82,10 @@ parseTiffHeader = do
 	skip $ ifdOffset - 8
 	return byteAlign
 
-parseIfd :: ByteAlign -> Int -> Get Word32
-parseIfd byteAlign tiffHeaderStart = do
+parseIfd :: ByteAlign -> Get Word32
+parseIfd byteAlign = do
 	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
-	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign tiffHeaderStart) [1..dirEntriesCount]
+	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign) [1..dirEntriesCount]
 	let exifOffsetEntry = fromMaybe (error "Can't find the exif offset in the IFD")
 		(find (\ e -> entryTag e == 0x8769) ifdEntries)
 	let exifOffset = entryContents exifOffsetEntry
@@ -93,7 +94,7 @@ parseIfd byteAlign tiffHeaderStart = do
 parseExifSubIfd :: ByteAlign -> Int -> Get (Map ExifTag String)
 parseExifSubIfd byteAlign tiffHeaderStart = do
 	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
-	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign tiffHeaderStart) [1..dirEntriesCount]
+	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign) [1..dirEntriesCount]
 	list <- mapM (decodeEntry byteAlign tiffHeaderStart) ifdEntries
 	return $ Map.fromList list
 
@@ -105,8 +106,8 @@ data IfEntry = IfEntry
 		entryContents :: !Word32
 	} deriving Show
 
-parseIfEntry :: ByteAlign -> Int -> Get IfEntry
-parseIfEntry byteAlign tiffHeaderStart = do
+parseIfEntry :: ByteAlign -> Get IfEntry
+parseIfEntry byteAlign = do
 	tagNumber <- getWord16 byteAlign
 	dataFormat <- getWord16 byteAlign
 	numComponents <- getWord32 byteAlign
@@ -156,7 +157,7 @@ data ExifTag = ExposureTime
 	deriving (Eq, Ord, Show)
 
 getExifTag :: Word16 -> ExifTag
-getExifTag entryTag = case entryTag of
+getExifTag entryTagV = case entryTagV of
 	0x829a -> ExposureTime
 	0x829d -> FNumber
 	0x8822 -> ExposureProgram
@@ -190,7 +191,7 @@ getExifTag entryTag = case entryTag of
 	0xa217 -> SensingMethod
 	0xa300 -> FileSource
 	0xa301 -> SceneType
-	_ -> Unknown entryTag
+	_ -> Unknown entryTagV
 
 decodeEntry :: ByteAlign -> Int -> IfEntry -> Get (ExifTag, String)
 decodeEntry byteAlign tiffHeaderStart entry = do
