@@ -1,1 +1,1 @@
-An exif parsing library in pure haskell. It is quite limited for now, but a good base I think. It does strict parsing though, it will load the entire JPEG in memory, maybe lazy parsing would be better but it's like that for now.
+An exif parsing library in pure haskell. It is quite limited for now, but a good base I think.
