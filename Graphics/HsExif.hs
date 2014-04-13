@@ -77,7 +77,7 @@ parseIfd byteAlign tiffHeaderStart = do
 	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
 	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign tiffHeaderStart) [1..dirEntriesCount]
 	let exifOffsetEntry = fromMaybe (error "Can't find the exif offset in the IFD")
-		(find (\ e -> entryTag e == 34665) ifdEntries)
+		(find (\ e -> entryTag e == 0x8769) ifdEntries)
 	let exifOffset = entryContents exifOffsetEntry
 	return exifOffset
 
