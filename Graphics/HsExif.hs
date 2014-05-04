@@ -6,6 +6,7 @@ module Graphics.HsExif (
 	ExifValue(..),
 	parseFileExif,
 	parseExif,
+	readExifDateTime,
 	getDateTimeOriginal,
 	getOrientation,
 	ImageOrientation(..),
@@ -326,17 +327,20 @@ decodeEntry byteAlign tiffHeaderStart location entry = do
 signedInt32ToInt :: Word32 -> Int
 signedInt32ToInt w = fromIntegral (fromIntegral w :: Int32)
 
--- | Extract the date and time when the picture was taken
--- from the EXIF information.
-getDateTimeOriginal :: Map ExifTag ExifValue -> Maybe LocalTime
-getDateTimeOriginal exifData = do 
-	dateStr <- liftM show $ Map.lookup dateTimeOriginal exifData
+-- | Decode an EXIF date time value.
+readExifDateTime :: String -> LocalTime
+readExifDateTime dateStr = 
 	-- i know more elegant ways to code this.. parsec, regex, text..
 	-- but i don't want to bring in too many dependencies to this library.
 	-- the date is like "YYYY:MM:DD HH:MM:SS"
-	return $ LocalTime
+	LocalTime
 		(fromGregorian (read $ take 4 dateStr) (read $ take 2 . drop 5 $ dateStr) (read $ take 2 . drop 8 $ dateStr))
 		(TimeOfDay (read $ take 2 . drop 11 $ dateStr) (read $ take 2 . drop 14 $ dateStr) (read $ take 2 . drop 17 $ dateStr))
+
+-- | Extract the date and time when the picture was taken
+-- from the EXIF information.
+getDateTimeOriginal :: Map ExifTag ExifValue -> Maybe LocalTime
+getDateTimeOriginal exifData = liftM (readExifDateTime . show) $ Map.lookup dateTimeOriginal exifData
 
 data RotationDirection = MinusNinety
 	| Ninety
