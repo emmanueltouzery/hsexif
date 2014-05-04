@@ -4,19 +4,24 @@ import Test.HUnit
 import Graphics.HsExif
 import qualified Data.ByteString.Lazy as B
 import qualified Data.Map as Map
+import Data.Map (Map)
 import Data.Time.LocalTime
 import Data.Time.Calendar
+import Data.Word
 
 main :: IO ()
 main = do
 	imageContents <- B.readFile "tests/test.jpg"
 	noExif <- B.readFile "tests/noexif.jpg"
 	png <- B.readFile "tests/test.png"
+	let parseExifCorrect = (\(Right x) -> x) . parseExif
+	let exifData = parseExifCorrect imageContents
 	hspec $ do
 		describe "not a JPG" $ testNotAJpeg png
 		describe "no EXIF" $ testNoExif noExif
 		describe "basic parsing" $ testBasic imageContents
-		describe "extract picture date" $ testDate imageContents
+		describe "extract picture date" $ testDate exifData
+		describe "image orientation" $ testOrientation exifData
 
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
@@ -28,9 +33,66 @@ testNoExif imageContents = it "returns empty list if no EXIF" $
 
 testBasic :: B.ByteString -> Spec
 testBasic imageContents = it "parses a simple JPEG" $
-	assertEqual "doesn't match" (Right $ Map.fromList [(ExposureTime,"1/160"),(FNumber,"0/10"),(ExposureProgram,"2"),(ISOSpeedRatings,"1600"),(ExifVersion,"808661552"),(DateTimeOriginal,"2013:10:02 20:33:33"),(DateTimeDigitized,"2013:10:02 20:33:33"),(ComponentConfiguration,"197121"),(CompressedBitsPerPixel,"2/1"),(BrightnessValue,"-4226/2560"),(ExposureBiasValue,"0/10"),(MaxApertureValue,"0/10"),(MeteringMode,"5"),(LightSource,"0"),(Flash,"24"),(FocalLength,"0/10"),(MakerNote,"868"),(UserComment,"36568"),(FlashPixVersion,"808464688"),(ColorSpace,"1"),(ExifImageWidth,"1"),(ExifImageHeight,"1"),(ExifInteroperabilityOffset,"36640"),(FileSource,"3"),(SceneType,"1"),(Unknown 41985,"0"),(Unknown 41986,"0"),(Unknown 41987,"0"),(Unknown 41988,"16/16"),(Unknown 41989,"0"),(Unknown 41990,"0"),(Unknown 41992,"0"),(Unknown 41993,"0"),(Unknown 41994,"0")]) (parseExif imageContents)
+	assertEqual "doesn't match" (Right $ Map.fromList [
+		(exposureTime, ExifRational 1 160),
+		(fnumber, ExifRational 0 10),
+		(exposureProgram, ExifNumber 2),
+		(isoSpeedRatings, ExifNumber 1600),
+		(exifVersion, ExifNumber 808661552),
+		(dateTimeOriginal, ExifText "2013:10:02 20:33:33"),
+		(dateTimeDigitized, ExifText "2013:10:02 20:33:33"),
+		(componentConfiguration, ExifNumber 197121),
+		(compressedBitsPerPixel, ExifRational 2 1),
+		(brightnessValue, ExifRational (-4226) 2560),
+		(exposureBiasValue, ExifRational 0 10),
+		(maxApertureValue, ExifRational 0 10),
+		(meteringMode, ExifNumber 5),
+		(lightSource, ExifNumber 0),
+		(fileSource, ExifNumber 3),
+		(flash, ExifNumber 24),
+		(focalLength, ExifRational 0 10),
+		(makerNote, ExifNumber 868),
+		(userComment, ExifNumber 36568),
+		(unknownExifSubIfdTag 40960, ExifNumber 808464688),
+		(colorSpace, ExifNumber 1),
+		(sceneType, ExifNumber 1),
+		(exifImageWidth, ExifNumber 1),
+		(exifImageHeight, ExifNumber 1),
+		(unknownExifSubIfdTag 40965, ExifNumber 36640),
+		(unknownExifSubIfdTag 41985, ExifNumber 0),
+		(unknownExifSubIfdTag 41986, ExifNumber 0),
+		(unknownExifSubIfdTag 41987, ExifNumber 0),
+		(unknownExifSubIfdTag 41988, ExifRational 16 16),
+		(unknownExifSubIfdTag 41989, ExifNumber 0),
+		(unknownExifSubIfdTag 41990, ExifNumber 0),
+		(unknownExifSubIfdTag 41992, ExifNumber 0),
+		(unknownExifSubIfdTag 41993, ExifNumber 0),
+		(unknownExifSubIfdTag 41994, ExifNumber 0),
+		(make, ExifText "SONY"),
+		(model, ExifText "NEX-3N"),
+		(software, ExifText "GIMP 2.8.10"),
+		(orientation, ExifNumber 1),
+		(unknownExifIfd0Tag 0x10e, ExifText "                               "),
+		(unknownExifIfd0Tag 0x11a, ExifRational 350 1),
+		(unknownExifIfd0Tag 0x11b, ExifRational 350 1),
+		(unknownExifIfd0Tag 0x128, ExifNumber 2),
+		(unknownExifIfd0Tag 0x132, ExifText "2014:04:10 20:14:20"),
+		(unknownExifIfd0Tag 0x213, ExifNumber 2),
+		(unknownExifIfd0Tag 0x8769, ExifNumber 358),
+		(unknownExifIfd0Tag 0xc4a5, ExifNumber 252)
+	]) (parseExif imageContents)
 
-testDate :: B.ByteString -> Spec
-testDate imageContents = it "extracts the date correctly" $
+unknownExifSubIfdTag :: Word16 -> ExifTag
+unknownExifSubIfdTag = ExifTag ExifSubIFD Nothing
+
+unknownExifIfd0Tag :: Word16 -> ExifTag
+unknownExifIfd0Tag = ExifTag IFD0 Nothing
+
+testDate :: Map ExifTag ExifValue -> Spec
+testDate exifData = it "extracts the date correctly" $
 	assertEqual "doesn't match" (Just $ LocalTime (fromGregorian 2013 10 2) (TimeOfDay 20 33 33))
-		(getDateTimeOriginal $ (\(Right x) -> x) $ parseExif imageContents)
+		(getDateTimeOriginal exifData)
+
+testOrientation :: Map ExifTag ExifValue -> Spec
+testOrientation exifData = it "reads exif orientation" $
+	assertEqual "doesn't match" (Just Normal) $ getOrientation exifData
