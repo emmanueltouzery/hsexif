@@ -56,6 +56,7 @@ import qualified Data.ByteString.Lazy as B
 import Control.Monad (liftM, unless)
 import qualified Data.ByteString.Char8 as Char8
 import Data.Word
+import Data.Char (isDigit, ord, chr)
 import Data.Int (Int32)
 import Data.List
 import Data.Maybe (fromMaybe)
@@ -328,20 +329,53 @@ decodeEntry byteAlign tiffHeaderStart location entry = do
 signedInt32ToInt :: Word32 -> Int
 signedInt32ToInt w = fromIntegral (fromIntegral w :: Int32)
 
+-- i had this as runGetM and reusing in parseExif,
+-- sadly fail is not implemented for Either.
+-- will do for now.
+runMaybeGet :: Get a -> B.ByteString -> Maybe a
+runMaybeGet get bs = case runGetOrFail get bs of
+	Left _ -> Nothing
+	Right (_,_,x) -> Just x
+
 -- | Decode an EXIF date time value.
-readExifDateTime :: String -> LocalTime
-readExifDateTime dateStr = 
-	-- i know more elegant ways to code this.. parsec, regex, text..
-	-- but i don't want to bring in too many dependencies to this library.
-	-- the date is like "YYYY:MM:DD HH:MM:SS"
-	LocalTime
-		(fromGregorian (read $ take 4 dateStr) (read $ take 2 . drop 5 $ dateStr) (read $ take 2 . drop 8 $ dateStr))
-		(TimeOfDay (read $ take 2 . drop 11 $ dateStr) (read $ take 2 . drop 14 $ dateStr) (read $ take 2 . drop 17 $ dateStr))
+-- Will return 'Nothing' in case parsing fails.
+readExifDateTime :: String -> Maybe LocalTime
+readExifDateTime dateStr = runMaybeGet getExifDateTime $ B.pack $ map (fromIntegral . ord) dateStr
+
+getExifDateTime :: Get LocalTime
+getExifDateTime = do
+	year <- readDigit 4
+	month <- getCharValue ':' >> readDigit 2
+	day <- getCharValue ':' >> readDigit 2
+	hour <- getCharValue ' ' >> readDigit 2
+	minute <- getCharValue ':' >> readDigit 2
+	second <- getCharValue ':' >> readDigit 2
+	return $ LocalTime (fromGregorian year month day) (TimeOfDay hour minute second)
+	where
+		readDigit x = liftM read $ count x getDigit
+
+count :: Int -> Get a -> Get [a]
+count n p | n <= 0 = return []
+        | otherwise = sequence (replicate n p)
+	
 
 -- | Extract the date and time when the picture was taken
 -- from the EXIF information.
 getDateTimeOriginal :: Map ExifTag ExifValue -> Maybe LocalTime
-getDateTimeOriginal exifData = liftM (readExifDateTime . show) $ Map.lookup dateTimeOriginal exifData
+getDateTimeOriginal exifData = Map.lookup dateTimeOriginal exifData >>= readExifDateTime . show 
+
+getCharWhere :: (Char->Bool) -> Get Char
+getCharWhere wher = do
+	char <- liftM (chr . fromIntegral) getWord8
+	if wher char
+		then return char
+		else fail "no parse"
+
+getDigit :: Get Char
+getDigit = getCharWhere isDigit
+
+getCharValue :: Char -> Get Char
+getCharValue char = getCharWhere (==char)
 
 data RotationDirection = MinusNinety
 	| Ninety

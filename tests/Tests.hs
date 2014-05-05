@@ -22,18 +22,19 @@ main = do
 		describe "basic parsing" $ testBasic imageContents
 		describe "extract picture date" $ testDate exifData
 		describe "image orientation" $ testOrientation exifData
+		describe "read exif date time" $ testReadExifDateTime
 
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
-	assertEqual "doesn't match" (Left "Not a JPEG file") (parseExif imageContents)
+	assertEqual' (Left "Not a JPEG file") (parseExif imageContents)
 
 testNoExif :: B.ByteString -> Spec
 testNoExif imageContents = it "returns empty list if no EXIF" $
-	assertEqual "doesn't match" (Left "No EXIF in JPEG") (parseExif imageContents)
+	assertEqual' (Left "No EXIF in JPEG") (parseExif imageContents)
 
 testBasic :: B.ByteString -> Spec
 testBasic imageContents = it "parses a simple JPEG" $
-	assertEqual "doesn't match" (Right $ Map.fromList [
+	assertEqual' (Right $ Map.fromList [
 		(exposureTime, ExifRational 1 160),
 		(fnumber, ExifRational 0 10),
 		(exposureProgram, ExifNumber 2),
@@ -90,9 +91,17 @@ unknownExifIfd0Tag = ExifTag IFD0 Nothing
 
 testDate :: Map ExifTag ExifValue -> Spec
 testDate exifData = it "extracts the date correctly" $
-	assertEqual "doesn't match" (Just $ LocalTime (fromGregorian 2013 10 2) (TimeOfDay 20 33 33))
+	assertEqual' (Just $ LocalTime (fromGregorian 2013 10 2) (TimeOfDay 20 33 33))
 		(getDateTimeOriginal exifData)
 
 testOrientation :: Map ExifTag ExifValue -> Spec
 testOrientation exifData = it "reads exif orientation" $
-	assertEqual "doesn't match" (Just Normal) $ getOrientation exifData
+	assertEqual' (Just Normal) $ getOrientation exifData
+
+testReadExifDateTime :: Spec
+testReadExifDateTime = it "reads exif date time" $ do
+	assertEqual' (Just $ LocalTime (fromGregorian 2013 10 2) (TimeOfDay 20 33 33)) (readExifDateTime "2013:10:02 20:33:33")
+	assertEqual' Nothing (readExifDateTime "2013:10:02 20:33:3")
+
+assertEqual' :: (Show a, Eq a) => a -> a -> Assertion
+assertEqual' = assertEqual "doesn't match"
