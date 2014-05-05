@@ -389,6 +389,7 @@ data ImageOrientation = Normal
 	deriving (Show, Eq)
 
 -- | Extract the image orientation from the EXIF information.
+-- Will return 'Nothing' on parse error.
 getOrientation :: Map ExifTag ExifValue -> Maybe ImageOrientation
 getOrientation exifData = do
 	rotationVal <- Map.lookup orientation exifData
@@ -401,4 +402,4 @@ getOrientation exifData = do
 		ExifNumber 6 -> Just $ Rotation MinusNinety
 		ExifNumber 7 -> Just $ MirrorRotation Ninety
 		ExifNumber 8 -> Just $ Rotation Ninety
-		_ -> error $ show rotationVal
+		_ -> Nothing
