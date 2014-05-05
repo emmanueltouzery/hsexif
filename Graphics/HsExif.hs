@@ -2,18 +2,22 @@
 -- | Ability to work with the EXIF data contained in JPEG files.
 module Graphics.HsExif (
 	-- $intro
-	ExifTag(..),
-	TagLocation(..),
-	ExifValue(..),
+
+	-- * Main functions
 	parseFileExif,
 	parseExif,
+
+	-- * Higher-level helper functions
 	readExifDateTime,
 	getDateTimeOriginal,
 	getOrientation,
 	ImageOrientation(..),
 	RotationDirection(..),
 
-	-- now all known exif tags
+	-- * The ExifValue type
+	ExifValue(..),
+
+	-- * All known exif tags
 	exposureTime,
 	fnumber,
 	exposureProgram,
@@ -50,6 +54,10 @@ module Graphics.HsExif (
 	model,
 	software,
 	copyright,
+
+	-- * If you need to declare your own exif tags
+	ExifTag(..),
+	TagLocation(..),
 ) where
 
 import Data.Binary.Get
@@ -409,9 +417,11 @@ getOrientation exifData = do
 --
 -- EXIF parsing from JPEG files.
 -- EXIF tags are enumerated as ExifTag values, check 'exposureTime' for instance.
+-- If you use the predefined ExifTag values, you don't care about details
+-- of the ExifTag type, however you should check out the 'ExifValue' type.
 --
 -- You start from a JPEG file, you can parse its exif tags as a 'Map' of
--- 'ExifTag' to 'ExifValue'.
+-- 'ExifTag' to 'ExifValue' using 'parseExif' or 'parseFileExif'.
 -- You can enumerate the map or 'lookup' the tags that interest you.
 --
 -- There are also a couple of higher-level helpers like 'getOrientation',
