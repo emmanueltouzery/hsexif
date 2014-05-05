@@ -82,7 +82,7 @@ import Numeric (showHex)
 --
 -- If you want a string describing the contents
 -- of the value, simply use 'show'.
-data ExifValue = ExifNumber Int
+data ExifValue = ExifNumber !Int
 	-- ^ An exif number. Could be short, int, signed or not.
 	| ExifText !String
 	-- ^ ASCII text.
