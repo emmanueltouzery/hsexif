@@ -74,14 +74,14 @@ import Numeric (showHex)
 -- of the value, simply use 'show'.
 data ExifValue = ExifNumber Int
 	-- ^ An exif number. Could be short, int, signed or not.
-	| ExifText String
+	| ExifText !String
 	-- ^ ASCII text.
-	| ExifRational Int Int
+	| ExifRational !Int !Int
 	-- ^ A rational number (numerator, denominator).
 	-- Sometimes we're used to it as rational (exposition time: 1/160),
 	-- sometimes as float (exposure compensation, we rather think -0.75)
 	-- 'show' will display it as 1/160.
-	| ExifUnknown Word16 Int -- type then value
+	| ExifUnknown !Word16 !Int -- type then value
 	-- ^ Unknown exif value type. Maybe float? If the JPEG file is not
 	-- corrupted, please send it to me.
 	deriving Eq
