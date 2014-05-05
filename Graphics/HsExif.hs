@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 -- | Ability to work with the EXIF data contained in JPEG files.
 module Graphics.HsExif (
+	-- $intro
 	ExifTag(..),
 	TagLocation(..),
 	ExifValue(..),
@@ -403,3 +404,15 @@ getOrientation exifData = do
 		ExifNumber 7 -> Just $ MirrorRotation Ninety
 		ExifNumber 8 -> Just $ Rotation Ninety
 		_ -> Nothing
+
+-- $intro
+--
+-- EXIF parsing from JPEG files.
+-- EXIF tags are enumerated as ExifTag values, check 'exposureTime' for instance.
+--
+-- You start from a JPEG file, you can parse its exif tags as a 'Map' of
+-- 'ExifTag' to 'ExifValue'.
+-- You can enumerate the map or 'lookup' the tags that interest you.
+--
+-- There are also a couple of higher-level helpers like 'getOrientation',
+-- 'getDateTimeOriginal'.
