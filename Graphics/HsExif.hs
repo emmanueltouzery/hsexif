@@ -17,43 +17,84 @@ module Graphics.HsExif (
 	-- * The ExifValue type
 	ExifValue(..),
 
-	-- * All known exif tags
+	-- * Most useful exif tags
 	exposureTime,
 	fnumber,
-	exposureProgram,
 	isoSpeedRatings,
-	exifVersion,
 	dateTimeOriginal,
-	dateTimeDigitized,
-	componentConfiguration,
-	compressedBitsPerPixel,
 	shutterSpeedValue,
 	apertureValue,
 	brightnessValue,
 	exposureBiasValue,
 	maxApertureValue,
+	flash,
+	focalLength,
+	userComment,
+	orientation,
+	make,
+	model,
+	software,
+	copyright,
+	digitalZoomRatio,
+	focalLengthIn35mmFilm, 
+
+	-- * Less useful exif tags
+
+	exifVersion,
+	sensingMethod,
+	fileSource,
+	sceneType,
+	makerNote,
 	subjectDistance,
 	meteringMode,
 	lightSource,
-	flash,
-	focalLength,
-	makerNote,
-	userComment,
-	colorSpace,
 	exifImageWidth,
 	exifImageHeight,
 	relatedSoundFile,
 	focalPlaneXResolution,
 	focalPlaneYResolution,
 	focalPlaneResolutionUnit,
-	sensingMethod,
-	fileSource,
-	sceneType,
-	orientation,
-	make,
-	model,
-	software,
-	copyright,
+	dateTimeDigitized,
+	componentConfiguration,
+	compressedBitsPerPixel,
+	exposureProgram,
+	spectralSensitivity,
+	oecf,
+	subjectArea,
+	subSecTime,
+	subSecTimeOriginal,
+	subSecTimeDigitized,
+	flashPixVersion,
+	colorSpace,
+	flashEnergy,
+	spatialFrequencyResponse,
+	subjectLocation,
+	exposureIndex,
+	cfaPattern,
+	customRendered,
+	exposureMode,
+	whiteBalance,
+	sceneCaptureType,
+	gainControl,
+	contrast,
+	saturation,
+	sharpness,
+	deviceSettingDescription,
+	subjectDistanceRange,
+	imageUniqueId,
+	exifInteroperabilityOffset,
+	imageDescription,
+	xResolution,
+	yResolution,
+	resolutionUnit,
+	dateTime,
+	whitePoint,
+	primaryChromaticities,
+	yCbCrPositioning,
+	yCbCrCoefficients,
+	referenceBlackWhite,
+	exifIfdOffset,
+	printImageMatching,
 
 	-- * If you need to declare your own exif tags
 	ExifTag(..),
@@ -101,6 +142,8 @@ instance Show ExifValue where
 
 -- see http://www.media.mit.edu/pia/Research/deepview/exif.html
 -- and http://www.cipa.jp/std/documents/e/DC-008-2012_E.pdf
+-- and http://www.awaresystems.be/imaging/tiff/tifftags/privateifd/exif.html
+-- and http://www.exiv2.org/tags.html
 
 -- | Read EXIF data from the file you give. It's a key-value map.
 parseFileExif :: FilePath -> IO (Either String (Map ExifTag ExifValue))
@@ -249,49 +292,98 @@ exifIfd0Tag d = ExifTag IFD0 (Just d)
 exposureTime		= exifSubIfdTag "exposureTime" 0x829a
 fnumber			= exifSubIfdTag "fnumber" 0x829d
 exposureProgram		= exifSubIfdTag "exposureProgram" 0x8822
-isoSpeedRatings		= exifSubIfdTag "isoSpeedRatings" 0x8827 
-exifVersion		= exifSubIfdTag "exifVersion" 0x9000 
-dateTimeOriginal	= exifSubIfdTag "dateTimeOriginal" 0x9003 
-dateTimeDigitized	= exifSubIfdTag "dateTimeDigitized" 0x9004 
-componentConfiguration	= exifSubIfdTag "componentConfiguration" 0x9101 
-compressedBitsPerPixel	= exifSubIfdTag "compressedBitsPerPixel" 0x9102 
-shutterSpeedValue	= exifSubIfdTag "shutterSpeedValue" 0x9201 
-apertureValue		= exifSubIfdTag "apertureValue" 0x9202 
-brightnessValue		= exifSubIfdTag "brightnessValue" 0x9203 
-exposureBiasValue	= exifSubIfdTag "exposureBiasValue" 0x9204 
-maxApertureValue	= exifSubIfdTag "maxApertureValue" 0x9205 
-subjectDistance		= exifSubIfdTag "subjectDistance" 0x9206 
-meteringMode		= exifSubIfdTag "meteringMode" 0x9207 
-lightSource		= exifSubIfdTag "lightSource" 0x9208 
-flash			= exifSubIfdTag "flash" 0x9209 
-focalLength		= exifSubIfdTag "focalLength" 0x920a 
-makerNote		= exifSubIfdTag "makerNote" 0x927c 
-userComment		= exifSubIfdTag "userComment" 0x9286 
-colorSpace		= exifSubIfdTag "colorSpace" 0xa001 
-exifImageWidth		= exifSubIfdTag "exifImageWidth" 0xa002 
-exifImageHeight		= exifSubIfdTag "exifImageHeight" 0xa003 
-relatedSoundFile	= exifSubIfdTag "relatedSoundFile" 0xa004 
-focalPlaneXResolution	= exifSubIfdTag "focalPlaneXResolution" 0xa20e 
-focalPlaneYResolution	= exifSubIfdTag "focalPlaneYResolution" 0xa20f 
-focalPlaneResolutionUnit= exifSubIfdTag "focalPlaneResolutionUnit" 0xa210 
-sensingMethod		= exifSubIfdTag "sensingMethod" 0xa217 
-fileSource		= exifSubIfdTag "fileSource" 0xa300 
-sceneType		= exifSubIfdTag "sceneType" 0xa301 
-orientation		= exifIfd0Tag "orientation" 0x0112 
-make			= exifIfd0Tag "make" 0x010f 
-model			= exifIfd0Tag "model" 0x0110 
-software		= exifIfd0Tag "software" 0x0131 
-copyright		= exifIfd0Tag "copyright" 0x8298 
+spectralSensitivity	= exifSubIfdTag "spectralSensitivity" 0x8824
+isoSpeedRatings		= exifSubIfdTag "isoSpeedRatings" 0x8827
+oecf			= exifSubIfdTag "OECF" 0x8828
+exifVersion		= exifSubIfdTag "exifVersion" 0x9000
+dateTimeOriginal	= exifSubIfdTag "dateTimeOriginal" 0x9003
+dateTimeDigitized	= exifSubIfdTag "dateTimeDigitized" 0x9004
+componentConfiguration	= exifSubIfdTag "componentConfiguration" 0x9101
+compressedBitsPerPixel	= exifSubIfdTag "compressedBitsPerPixel" 0x9102
+shutterSpeedValue	= exifSubIfdTag "shutterSpeedValue" 0x9201
+apertureValue		= exifSubIfdTag "apertureValue" 0x9202
+brightnessValue		= exifSubIfdTag "brightnessValue" 0x9203
+exposureBiasValue	= exifSubIfdTag "exposureBiasValue" 0x9204
+maxApertureValue	= exifSubIfdTag "maxApertureValue" 0x9205
+subjectDistance		= exifSubIfdTag "subjectDistance" 0x9206
+meteringMode		= exifSubIfdTag "meteringMode" 0x9207
+lightSource		= exifSubIfdTag "lightSource" 0x9208
+flash			= exifSubIfdTag "flash" 0x9209
+focalLength		= exifSubIfdTag "focalLength" 0x920a
+subjectArea		= exifSubIfdTag "subjectArea" 0x9214
+makerNote		= exifSubIfdTag "makerNote" 0x927c
+userComment		= exifSubIfdTag "userComment" 0x9286
+subSecTime		= exifSubIfdTag "subSecTime" 0x9290
+subSecTimeOriginal	= exifSubIfdTag "subSecTimeOriginal" 0x9291
+subSecTimeDigitized	= exifSubIfdTag "subSecTimeDigitized" 0x9292
+flashPixVersion		= exifSubIfdTag "flashPixVersion" 0xa000
+colorSpace		= exifSubIfdTag "colorSpace" 0xa001
+exifImageWidth		= exifSubIfdTag "exifImageWidth" 0xa002
+exifImageHeight		= exifSubIfdTag "exifImageHeight" 0xa003
+relatedSoundFile	= exifSubIfdTag "relatedSoundFile" 0xa004
+flashEnergy		= exifSubIfdTag "flashEnergy" 0xa20b
+spatialFrequencyResponse= exifSubIfdTag "spatialFrequencyResponse" 0xa20c
+focalPlaneXResolution	= exifSubIfdTag "focalPlaneXResolution" 0xa20e
+focalPlaneYResolution	= exifSubIfdTag "focalPlaneYResolution" 0xa20f
+focalPlaneResolutionUnit= exifSubIfdTag "focalPlaneResolutionUnit" 0xa210
+subjectLocation		= exifSubIfdTag "subjectLocation" 0xa214
+exposureIndex		= exifSubIfdTag "exposureIndex" 0xa215
+sensingMethod		= exifSubIfdTag "sensingMethod" 0xa217
+fileSource		= exifSubIfdTag "fileSource" 0xa300
+sceneType		= exifSubIfdTag "sceneType" 0xa301
+cfaPattern		= exifSubIfdTag "cfaPattern" 0xa302
+customRendered		= exifSubIfdTag "customRendered" 0xa401
+exposureMode		= exifSubIfdTag "exposureMode" 0xa402
+whiteBalance		= exifSubIfdTag "whiteBalance" 0xa403
+digitalZoomRatio	= exifSubIfdTag "digitalZoomRatio" 0xa404
+focalLengthIn35mmFilm	= exifSubIfdTag "focalLengthIn35mmFilm" 0xa405
+sceneCaptureType	= exifSubIfdTag "sceneCaptureType" 0xa406
+gainControl		= exifSubIfdTag "gainControl" 0xa407
+contrast		= exifSubIfdTag "contrast" 0xa408
+saturation		= exifSubIfdTag "saturation" 0xa409
+sharpness		= exifSubIfdTag "sharpness" 0xa40a
+deviceSettingDescription= exifSubIfdTag "deviceSettingDescription" 0xa40b
+subjectDistanceRange	= exifSubIfdTag "subjectDistanceRange" 0xa40c
+imageUniqueId		= exifSubIfdTag "imageUniqueId" 0xa420
+exifInteroperabilityOffset=exifSubIfdTag "exifInteroperabilityOffset" 0xa005
+
+imageDescription	= exifIfd0Tag "imageDescription" 0x010e
+make			= exifIfd0Tag "make" 0x010f
+model			= exifIfd0Tag "model" 0x0110
+orientation		= exifIfd0Tag "orientation" 0x0112
+xResolution		= exifIfd0Tag "xResolution" 0x011a
+yResolution		= exifIfd0Tag "xResolution" 0x011b
+resolutionUnit		= exifIfd0Tag "resolutionUnit" 0x0128
+software		= exifIfd0Tag "software" 0x0131
+dateTime		= exifIfd0Tag "dateTime" 0x0132
+whitePoint		= exifIfd0Tag "whitePoint" 0x013e
+primaryChromaticities	= exifIfd0Tag "primaryChromaticities" 0x013f
+yCbCrCoefficients	= exifIfd0Tag "yCbCrCoefficients" 0x0211
+yCbCrPositioning	= exifIfd0Tag "yCbCrPositioning" 0x0213
+referenceBlackWhite	= exifIfd0Tag "referenceBlackWhite" 0x0214
+copyright		= exifIfd0Tag "copyright" 0x8298
+exifIfdOffset		= exifIfd0Tag "exifOffset" 0x8769
+printImageMatching	= exifIfd0Tag "printImageMatching" 0xc4a5
 
 allExifTags :: [ExifTag]
 allExifTags = [exposureTime, fnumber, exposureProgram, isoSpeedRatings,
 	exifVersion, dateTimeOriginal, dateTimeDigitized, componentConfiguration,
 	compressedBitsPerPixel, shutterSpeedValue, apertureValue, brightnessValue,
 	exposureBiasValue, maxApertureValue, subjectDistance, meteringMode,
-	lightSource, flash, focalLength, makerNote, userComment, colorSpace,
+	lightSource, flash, focalLength, makerNote, userComment,
 	exifImageWidth, exifImageHeight, relatedSoundFile, focalPlaneXResolution,
 	focalPlaneYResolution, focalPlaneResolutionUnit, sensingMethod, fileSource,
-	sceneType, orientation, make, model, software, copyright]
+	sceneType, orientation, make, model, software, copyright,
+	spectralSensitivity, oecf, subjectArea, subSecTime, subSecTimeOriginal,
+	subSecTimeDigitized, flashPixVersion, colorSpace, flashEnergy,
+	spatialFrequencyResponse, subjectLocation, exposureIndex, cfaPattern,
+	customRendered, exposureMode, whiteBalance, digitalZoomRatio,
+	focalLengthIn35mmFilm, sceneCaptureType, gainControl, contrast,
+	saturation, sharpness, deviceSettingDescription, subjectDistanceRange,
+	imageUniqueId, exifInteroperabilityOffset, imageDescription,
+	xResolution, yResolution, resolutionUnit, dateTime, whitePoint,
+	primaryChromaticities, yCbCrPositioning, yCbCrCoefficients, referenceBlackWhite,
+	exifIfdOffset, printImageMatching]
 
 getExifTag :: TagLocation -> Word16 -> ExifTag
 getExifTag l v = fromMaybe (ExifTag l Nothing v) $ find (isSameTag l v) allExifTags
