@@ -75,11 +75,8 @@ import Data.Time.LocalTime
 import Data.Time.Calendar
 import Numeric (showHex)
 
--- | An exif value. Exif values can also be float,
--- but this library doesn't support it yet. If you
--- have JPG files containing float exif values,
--- please send it!
---
+-- | An exif value.
+-- 
 -- If you want a string describing the contents
 -- of the value, simply use 'show'.
 data ExifValue = ExifNumber !Int
@@ -92,8 +89,8 @@ data ExifValue = ExifNumber !Int
 	-- sometimes as float (exposure compensation, we rather think -0.75)
 	-- 'show' will display it as 1/160.
 	| ExifUnknown !Word16 !Int -- type then value
-	-- ^ Unknown exif value type. Maybe float? If the JPEG file is not
-	-- corrupted, please send it to me.
+	-- ^ Unknown exif value type. All EXIF 2.3 types are
+	-- supported, it could be a newer file.
 	deriving Eq
 
 instance Show ExifValue where
@@ -103,6 +100,7 @@ instance Show ExifValue where
 	show (ExifUnknown t v) = show "Unknown exif type. Type: " ++ show t ++ " value: " ++ show v
 
 -- see http://www.media.mit.edu/pia/Research/deepview/exif.html
+-- and http://www.cipa.jp/std/documents/e/DC-008-2012_E.pdf
 
 -- | Read EXIF data from the file you give. It's a key-value map.
 parseFileExif :: FilePath -> IO (Either String (Map ExifTag ExifValue))
@@ -331,7 +329,6 @@ decodeEntry byteAlign tiffHeaderStart location entry = do
 			numerator <- liftM signedInt32ToInt (getWord32 byteAlign)
 			denominator <- liftM signedInt32ToInt (getWord32 byteAlign)
 			return $ ExifRational numerator denominator
-		-- TODO decode float values, 11 single float and 12 double float but I'd like tests
 		_ -> return $ ExifUnknown (entryFormat entry) contentsInt
 	return (exifTag, tagValue)
 
