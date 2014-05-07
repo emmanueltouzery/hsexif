@@ -105,6 +105,7 @@ module Graphics.HsExif (
 import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteString.Lazy as B
+import qualified Data.ByteString as BS
 import Control.Monad (liftM, unless)
 import qualified Data.ByteString.Char8 as Char8
 import Data.Word
@@ -133,6 +134,7 @@ data ExifValue = ExifNumber !Int
 	-- 'show' will display it as 1/160.
 	| ExifNumberList ![Int]
 	| ExifRationalList ![(Int,Int)]
+	| ExifUndefined BS.ByteString
 	| ExifUnknown !Word16 !Int !Int -- type, count then value
 	-- ^ Unknown exif value type. All EXIF 2.3 types are
 	-- supported, it could be a newer file.
@@ -146,6 +148,7 @@ instance Show ExifValue where
 		++ " count: " ++ show c ++ " value: " ++ show v
 	show (ExifNumberList l) = show l
 	show (ExifRationalList l) = show l
+	show (ExifUndefined bs) = show bs
 
 -- see http://www.media.mit.edu/pia/Research/deepview/exif.html
 -- and http://www.cipa.jp/std/documents/e/DC-008-2012_E.pdf
@@ -458,8 +461,6 @@ unsignedLongValueHandler = ValueHandler
 		readMany = readNumberList getWord32
 	}
 
-undefinedValueHandler = unsignedByteValueHandler { dataTypeId = 7 }
-
 readRationalContents :: (Int -> Int -> a) -> ByteAlign -> Get a
 readRationalContents c byteAlign = do
 	numerator <- liftM fromIntegral $ getWord32 byteAlign
@@ -481,6 +482,14 @@ signedByteValueHandler = ValueHandler
 		dataLength = 1,
 		readSingle = \_ -> liftM (ExifNumber . signedInt8ToInt) getWord8,
 		readMany = readNumberList (\_ -> liftM signedInt8ToInt getWord8)
+	}
+
+undefinedValueHandler = ValueHandler
+	{
+		dataTypeId = 7,
+		dataLength = 1,
+		readSingle = \ba -> readMany undefinedValueHandler ba 1,
+		readMany = \_ components -> liftM ExifUndefined (getByteString (components-1))
 	}
 
 signedShortValueHandler = ValueHandler
