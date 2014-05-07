@@ -95,6 +95,7 @@ module Graphics.HsExif (
 	referenceBlackWhite,
 	exifIfdOffset,
 	printImageMatching,
+	gpsTagOffset,
 
 	-- * If you need to declare your own exif tags
 	ExifTag(..),
@@ -102,14 +103,15 @@ module Graphics.HsExif (
 ) where
 
 import Data.Binary.Get
+import Data.Binary.Put
 import qualified Data.ByteString.Lazy as B
 import Control.Monad (liftM, unless)
 import qualified Data.ByteString.Char8 as Char8
 import Data.Word
 import Data.Char (isDigit, ord, chr)
-import Data.Int (Int32)
+import Data.Int (Int32, Int16, Int8)
 import Data.List
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, fromJust) -- TODO try to get rid of fromJust
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Time.LocalTime
@@ -129,7 +131,9 @@ data ExifValue = ExifNumber !Int
 	-- Sometimes we're used to it as rational (exposition time: 1/160),
 	-- sometimes as float (exposure compensation, we rather think -0.75)
 	-- 'show' will display it as 1/160.
-	| ExifUnknown !Word16 !Int -- type then value
+	| ExifNumberList ![Int]
+	| ExifRationalList ![(Int,Int)]
+	| ExifUnknown !Word16 !Int !Int -- type, count then value
 	-- ^ Unknown exif value type. All EXIF 2.3 types are
 	-- supported, it could be a newer file.
 	deriving Eq
@@ -138,7 +142,10 @@ instance Show ExifValue where
 	show (ExifNumber v) = show v
 	show (ExifText v) = v
 	show (ExifRational n d) = show n ++ "/" ++ show d
-	show (ExifUnknown t v) = show "Unknown exif type. Type: " ++ show t ++ " value: " ++ show v
+	show (ExifUnknown t c v) = show "Unknown exif type. Type: " ++ show t 
+		++ " count: " ++ show c ++ " value: " ++ show v
+	show (ExifNumberList l) = show l
+	show (ExifRationalList l) = show l
 
 -- see http://www.media.mit.edu/pia/Research/deepview/exif.html
 -- and http://www.cipa.jp/std/documents/e/DC-008-2012_E.pdf
@@ -183,6 +190,10 @@ getWord32 :: ByteAlign -> Get Word32
 getWord32 Intel = getWord32le
 getWord32 Motorola = getWord32be
 
+putWord32 :: ByteAlign -> (Word32 -> Put)
+putWord32 Intel = putWord32le
+putWord32 Motorola = putWord32be
+
 parseExifBlock :: Get (Map ExifTag ExifValue)
 parseExifBlock = do
 	header <- getByteString 4
@@ -191,13 +202,23 @@ parseExifBlock = do
 		$ fail "invalid EXIF header"
 	tiffHeaderStart <- liftM fromIntegral bytesRead
 	byteAlign <- parseTiffHeader
-	(exifSubIfdOffsetW, ifdEntries) <- parseIfd byteAlign tiffHeaderStart
+	(exifSubIfdOffsetW, mGpsOffsetW, ifdEntries) <- parseIfd byteAlign tiffHeaderStart
 	let exifSubIfdOffset = fromIntegral $ toInteger exifSubIfdOffsetW
+	gpsData <- case mGpsOffsetW of
+		Nothing -> return []
+		Just gpsOffsetW -> lookAhead $ parseGps gpsOffsetW byteAlign tiffHeaderStart
 	-- skip to the exif offset
 	bytesReadNow <- liftM fromIntegral bytesRead
 	skip $ (exifSubIfdOffset + tiffHeaderStart) - bytesReadNow
-	exifSubEntries <- parseExifSubIfd byteAlign tiffHeaderStart
-	return $ Map.fromList $ ifdEntries ++ exifSubEntries
+	exifSubEntries <- parseSubIfd byteAlign tiffHeaderStart ExifSubIFD
+	return $ Map.fromList $ ifdEntries ++ exifSubEntries ++ gpsData
+
+parseGps :: Word32 -> ByteAlign -> Int -> Get [(ExifTag, ExifValue)]
+parseGps gpsOffsetW byteAlign tiffHeaderStart = do
+	let gpsOffset = fromIntegral $ toInteger gpsOffsetW
+	bytesReadNow <- liftM fromIntegral bytesRead
+	skip $ (gpsOffset + tiffHeaderStart) - bytesReadNow
+	parseSubIfd byteAlign tiffHeaderStart GpsSubIFD
 
 parseTiffHeader :: Get ByteAlign
 parseTiffHeader = do
@@ -213,27 +234,30 @@ parseTiffHeader = do
 	skip $ ifdOffset - 8
 	return byteAlign
 
-parseIfd :: ByteAlign -> Int -> Get (Word32, [(ExifTag, ExifValue)])
+parseIfd :: ByteAlign -> Int -> Get (Word32, Maybe Word32, [(ExifTag, ExifValue)])
 parseIfd byteAlign tiffHeaderStart = do
 	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
 	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign) [1..dirEntriesCount]
-	let exifOffsetEntry = fromMaybe (error "Can't find the exif offset in the IFD")
-		(find (\ e -> entryTag e == 0x8769) ifdEntries)
+	let exifOffsetEntry = fromMaybe (error "Can't find the exif ifd offset")
+		(find (\ e -> entryTag e == tagKey exifIfdOffset) ifdEntries)
 	let exifOffset = entryContents exifOffsetEntry
-	entries <- mapM (decodeEntry byteAlign tiffHeaderStart IFD0) ifdEntries
-	return (exifOffset, entries)
 
-parseExifSubIfd :: ByteAlign -> Int -> Get [(ExifTag, ExifValue)]
-parseExifSubIfd byteAlign tiffHeaderStart = do
+	let gpsOffsetEntry = find (\ e -> entryTag e == tagKey gpsTagOffset) ifdEntries
+	let gpsOffset = fmap entryContents gpsOffsetEntry
+	entries <- mapM (decodeEntry byteAlign tiffHeaderStart IFD0) ifdEntries
+	return (exifOffset, gpsOffset, entries)
+
+parseSubIfd :: ByteAlign -> Int -> TagLocation -> Get [(ExifTag, ExifValue)]
+parseSubIfd byteAlign tiffHeaderStart location = do
 	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
 	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign) [1..dirEntriesCount]
-	mapM (decodeEntry byteAlign tiffHeaderStart ExifSubIFD) ifdEntries
+	mapM (decodeEntry byteAlign tiffHeaderStart location) ifdEntries
 
 data IfEntry = IfEntry
 	{
 		entryTag :: !Word16,
 		entryFormat :: !Word16,
-		entryNoComponents :: !Word32,
+		entryNoComponents :: !Int,
 		entryContents :: !Word32
 	} deriving Show
 
@@ -247,7 +271,7 @@ parseIfEntry byteAlign = do
 		{
 			entryTag = tagNumber,
 			entryFormat = dataFormat,
-			entryNoComponents = numComponents,
+			entryNoComponents = fromIntegral $ toInteger numComponents,
 			entryContents = value
 		}
 
@@ -257,7 +281,7 @@ parseIfEntry byteAlign = do
 -- exif tag you're interested in.
 -- Rather check the list of supported exif tags, like
 -- 'exposureTime' and so on.
-data TagLocation = ExifSubIFD | IFD0
+data TagLocation = ExifSubIFD | IFD0 | GpsSubIFD
 	deriving (Show, Eq, Ord)
 
 -- | An exif tag. Normally you don't need to fiddle with this,
@@ -363,6 +387,7 @@ yCbCrPositioning	= exifIfd0Tag "yCbCrPositioning" 0x0213
 referenceBlackWhite	= exifIfd0Tag "referenceBlackWhite" 0x0214
 copyright		= exifIfd0Tag "copyright" 0x8298
 exifIfdOffset		= exifIfd0Tag "exifOffset" 0x8769
+gpsTagOffset		= exifIfd0Tag "gpsTagOffset" 0x8825
 printImageMatching	= exifIfd0Tag "printImageMatching" 0xc4a5
 
 allExifTags :: [ExifTag]
@@ -383,49 +408,158 @@ allExifTags = [exposureTime, fnumber, exposureProgram, isoSpeedRatings,
 	imageUniqueId, exifInteroperabilityOffset, imageDescription,
 	xResolution, yResolution, resolutionUnit, dateTime, whitePoint,
 	primaryChromaticities, yCbCrPositioning, yCbCrCoefficients, referenceBlackWhite,
-	exifIfdOffset, printImageMatching]
+	exifIfdOffset, printImageMatching, gpsTagOffset]
 
 getExifTag :: TagLocation -> Word16 -> ExifTag
 getExifTag l v = fromMaybe (ExifTag l Nothing v) $ find (isSameTag l v) allExifTags
 	where isSameTag l1 v1 (ExifTag l2 _ v2) = l1 == l2 && v1 == v2
 
+data ValueHandler = ValueHandler
+	{
+		dataTypeId :: Word16,
+		dataLength :: Int,
+		parserSingle :: ByteAlign -> Get ExifValue
+	}
+
+unsignedByteValueHandler = ValueHandler
+	{
+		dataTypeId = 1,
+		dataLength = 1,
+		parserSingle = \_ -> liftM (ExifNumber . fromIntegral) getWord8
+	}
+
+unsignedShortValueHandler = ValueHandler
+	{
+		dataTypeId = 3,
+		dataLength = 2,
+		parserSingle = \byteAlign -> liftM (ExifNumber . fromIntegral) $ getWord16 byteAlign
+	}
+
+unsignedLongValueHandler = ValueHandler
+	{
+		dataTypeId = 4,
+		dataLength = 4,
+		parserSingle = \byteAlign -> liftM (ExifNumber . fromIntegral) $ getWord32 byteAlign
+	}
+
+undefinedValueHandler = unsignedByteValueHandler { dataTypeId = 7 }
+
+unsignedRationalValueHandler = ValueHandler
+	{
+		dataTypeId = 5,
+		dataLength = 8,
+		parserSingle = \byteAlign -> do
+			numerator <- liftM fromIntegral $ getWord32 byteAlign
+			denominator <- liftM fromIntegral $ getWord32 byteAlign
+			return $ ExifRational numerator denominator
+	}
+
+signedByteValueHandler = ValueHandler
+	{
+		dataTypeId = 6,
+		dataLength = 1,
+		parserSingle = \_ -> liftM (ExifNumber . signedInt8ToInt) getWord8
+	}
+
+signedShortValueHandler = ValueHandler
+	{
+		dataTypeId = 8,
+		dataLength = 2,
+		parserSingle = \byteAlign -> liftM (ExifNumber . signedInt16ToInt) $ getWord16 byteAlign
+	}
+
+signedLongValueHandler = ValueHandler
+	{
+		dataTypeId = 9,
+		dataLength = 4,
+		parserSingle = \byteAlign -> liftM (ExifNumber . signedInt32ToInt) $ getWord32 byteAlign
+	}
+
+signedRationalValueHandler = ValueHandler
+	{
+		dataTypeId = 10,
+		dataLength = 8,
+		parserSingle = \byteAlign -> do
+			numerator <- liftM signedInt32ToInt $ getWord32 byteAlign
+			denominator <- liftM signedInt32ToInt $ getWord32 byteAlign
+			return $ ExifRational numerator denominator
+	}
+
+-- ascii string is special for now.
+valueHandlers :: [ValueHandler]
+valueHandlers =
+	[
+		unsignedByteValueHandler,
+		unsignedShortValueHandler,
+		unsignedLongValueHandler,
+		unsignedRationalValueHandler,
+		signedByteValueHandler,
+		signedShortValueHandler,
+		signedLongValueHandler,
+		signedRationalValueHandler,
+		undefinedValueHandler
+	]
+
 decodeEntry :: ByteAlign -> Int -> TagLocation -> IfEntry -> Get (ExifTag, ExifValue)
 decodeEntry byteAlign tiffHeaderStart location entry = do
 	let exifTag = getExifTag location $ entryTag entry
 	let contentsInt = fromIntegral $ toInteger $ entryContents entry
-	let componentsInt = fromIntegral $ toInteger $ entryNoComponents entry
 	-- because I only know how to skip ahead, I hope the entries
 	-- are always sorted in order of the offsets to their values...
 	-- (maybe lookAhead could help here?)
 	tagValue <- case entryFormat entry of
-		1 -> return $ ExifNumber contentsInt -- unsigned byte
 		2 -> do -- ascii string
+		        -- TODO it's completely possible to have <=4 bytes
+		        -- string that would work without offset! support this!
 			curPos <- liftM fromIntegral bytesRead
 			skip $ contentsInt + tiffHeaderStart - curPos
-			liftM (ExifText . Char8.unpack) (getByteString (componentsInt-1))
-		3 -> return $ ExifNumber contentsInt -- unsigned short
-		4 -> return $ ExifNumber contentsInt -- unsigned long
-		5 -> do -- unsigned rational
-			curPos <- liftM fromIntegral bytesRead
-			skip $ contentsInt + tiffHeaderStart - curPos
-			numerator <- liftM fromIntegral $ getWord32 byteAlign
-			denominator <- liftM fromIntegral $ getWord32 byteAlign
-			return $ ExifRational numerator denominator
-		6 -> return $ ExifNumber $ signedInt32ToInt $ entryContents entry -- signed byte
-		7 -> return $ ExifNumber contentsInt -- undefined
-		8 -> return $ ExifNumber $ signedInt32ToInt $ entryContents entry -- signed short
-		9 -> return $ ExifNumber $ signedInt32ToInt $ entryContents entry -- signed long
-		10 -> do -- signed rational
-			curPos <- liftM fromIntegral bytesRead
-			skip $ contentsInt + tiffHeaderStart - curPos
-			numerator <- liftM signedInt32ToInt (getWord32 byteAlign)
-			denominator <- liftM signedInt32ToInt (getWord32 byteAlign)
-			return $ ExifRational numerator denominator
-		_ -> return $ ExifUnknown (entryFormat entry) contentsInt
+			liftM (ExifText . Char8.unpack) (getByteString ((entryNoComponents entry)-1))
+		typeId@_ -> case getHandler typeId of
+			Just handler -> decodeEntryWithHandler byteAlign tiffHeaderStart handler entry
+			Nothing -> return $ ExifUnknown (entryFormat entry) (entryNoComponents entry) contentsInt
 	return (exifTag, tagValue)
+
+combine :: [ExifValue] -> ExifValue
+combine (x:[]) = x
+combine xs@(ExifNumber _:_) = ExifNumberList $ fmap (\(ExifNumber x) -> x) xs
+combine xs@(ExifRational _ _:_) = ExifRationalList $ fmap (\(ExifRational a b) -> (a,b)) xs
+combine _ = error "Combine pattern fail. Should be impossible, please report."
+
+getHandler :: Word16 -> Maybe ValueHandler
+getHandler typeId = find ((==typeId) . dataTypeId) valueHandlers
+
+decodeEntryWithHandler :: ByteAlign -> Int -> ValueHandler -> IfEntry -> Get ExifValue
+decodeEntryWithHandler byteAlign tiffHeaderStart handler entry = do
+	if dataLength handler * (entryNoComponents entry) <= 4
+		then return $ parseInline byteAlign handler entry inlineBs
+		else parseOffset byteAlign tiffHeaderStart handler entry
+	where
+		inlineBs = runPut $ putWord32 byteAlign $ entryContents entry
+
+parseInline :: ByteAlign -> ValueHandler -> IfEntry -> B.ByteString -> ExifValue
+parseInline byteAlign handler entry bytestring =
+	combine $ fromJust $ runMaybeGet decodeCount bytestring
+	where
+		decodeCount = count (entryNoComponents entry) (parser byteAlign)
+		parser = parserSingle handler
+
+parseOffset :: ByteAlign -> Int -> ValueHandler -> IfEntry -> Get ExifValue
+parseOffset byteAlign tiffHeaderStart handler entry = do
+	let contentsInt = fromIntegral $ toInteger $ entryContents entry
+	curPos <- liftM fromIntegral bytesRead
+	skip $ contentsInt + tiffHeaderStart - curPos
+	bytestring <- getByteString (entryNoComponents entry * dataLength handler)
+	return $ parseInline byteAlign handler entry
+		(B.pack $ fmap (fromIntegral . ord) $ Char8.unpack bytestring) -- TODO ugly and evil
 
 signedInt32ToInt :: Word32 -> Int
 signedInt32ToInt w = fromIntegral (fromIntegral w :: Int32)
+
+signedInt16ToInt :: Word16 -> Int
+signedInt16ToInt w = fromIntegral (fromIntegral w :: Int16)
+
+signedInt8ToInt :: Word8 -> Int
+signedInt8ToInt w = fromIntegral (fromIntegral w :: Int8)
 
 -- i had this as runGetM and reusing in parseExif,
 -- sadly fail is not implemented for Either.
