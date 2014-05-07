@@ -418,71 +418,92 @@ data ValueHandler = ValueHandler
 	{
 		dataTypeId :: Word16,
 		dataLength :: Int,
-		parserSingle :: ByteAlign -> Get ExifValue
+		readSingle :: ByteAlign -> Get ExifValue,
+		readMany :: ByteAlign -> Int -> Get ExifValue
 	}
+
+readNumberList decoder = \byteAlign components -> liftM (ExifNumberList . fmap fromIntegral)
+			$ readManyInternal byteAlign components
+			where readManyInternal byteAlign components = count components (decoder byteAlign)
 
 unsignedByteValueHandler = ValueHandler
 	{
 		dataTypeId = 1,
 		dataLength = 1,
-		parserSingle = \_ -> liftM (ExifNumber . fromIntegral) getWord8
+		readSingle = \_ -> liftM (ExifNumber . fromIntegral) getWord8,
+		readMany = readNumberList (\_ -> getWord8)
 	}
 
 unsignedShortValueHandler = ValueHandler
 	{
 		dataTypeId = 3,
 		dataLength = 2,
-		parserSingle = \byteAlign -> liftM (ExifNumber . fromIntegral) $ getWord16 byteAlign
+		readSingle = \byteAlign -> liftM (ExifNumber . fromIntegral) $ getWord16 byteAlign,
+		readMany = readNumberList getWord16
 	}
 
 unsignedLongValueHandler = ValueHandler
 	{
 		dataTypeId = 4,
 		dataLength = 4,
-		parserSingle = \byteAlign -> liftM (ExifNumber . fromIntegral) $ getWord32 byteAlign
+		readSingle = \byteAlign -> liftM (ExifNumber . fromIntegral) $ getWord32 byteAlign,
+		readMany = readNumberList getWord32
 	}
 
 undefinedValueHandler = unsignedByteValueHandler { dataTypeId = 7 }
+
+readRationalContents :: (Int -> Int -> a) -> ByteAlign -> Get a
+readRationalContents c byteAlign = do
+	numerator <- liftM fromIntegral $ getWord32 byteAlign
+	denominator <- liftM fromIntegral $ getWord32 byteAlign
+	return $ c numerator denominator
 
 unsignedRationalValueHandler = ValueHandler
 	{
 		dataTypeId = 5,
 		dataLength = 8,
-		parserSingle = \byteAlign -> do
-			numerator <- liftM fromIntegral $ getWord32 byteAlign
-			denominator <- liftM fromIntegral $ getWord32 byteAlign
-			return $ ExifRational numerator denominator
+		readSingle = readRationalContents ExifRational,
+		readMany = let readManyInternal byteAlign components = count components (readRationalContents (,) byteAlign) in
+			\byteAlign components -> liftM ExifRationalList $ readManyInternal byteAlign components
 	}
 
 signedByteValueHandler = ValueHandler
 	{
 		dataTypeId = 6,
 		dataLength = 1,
-		parserSingle = \_ -> liftM (ExifNumber . signedInt8ToInt) getWord8
+		readSingle = \_ -> liftM (ExifNumber . signedInt8ToInt) getWord8,
+		readMany = readNumberList (\_ -> liftM signedInt8ToInt getWord8)
 	}
 
 signedShortValueHandler = ValueHandler
 	{
 		dataTypeId = 8,
 		dataLength = 2,
-		parserSingle = \byteAlign -> liftM (ExifNumber . signedInt16ToInt) $ getWord16 byteAlign
+		readSingle = \byteAlign -> liftM (ExifNumber . signedInt16ToInt) $ getWord16 byteAlign,
+		readMany = readNumberList (\b -> liftM signedInt16ToInt $ getWord16 b)
 	}
 
 signedLongValueHandler = ValueHandler
 	{
 		dataTypeId = 9,
 		dataLength = 4,
-		parserSingle = \byteAlign -> liftM (ExifNumber . signedInt32ToInt) $ getWord32 byteAlign
+		readSingle = \byteAlign -> liftM (ExifNumber . signedInt32ToInt) $ getWord32 byteAlign,
+		readMany = readNumberList (\b -> liftM signedInt32ToInt $ getWord32 b)
 	}
+
+readSignedRationalContents :: (Int -> Int -> a) -> ByteAlign -> Get a
+readSignedRationalContents c byteAlign = do
+	numerator <- liftM signedInt32ToInt $ getWord32 byteAlign
+	denominator <- liftM signedInt32ToInt $ getWord32 byteAlign
+	return $ c numerator denominator
 
 signedRationalValueHandler = ValueHandler
 	{
 		dataTypeId = 10,
 		dataLength = 8,
-		parserSingle = \byteAlign -> do
-			numerator <- liftM signedInt32ToInt $ getWord32 byteAlign
-			denominator <- liftM signedInt32ToInt $ getWord32 byteAlign
-			return $ ExifRational numerator denominator
+		readSingle = readSignedRationalContents ExifRational,
+		readMany = let readManyInternal byteAlign components = count components (readSignedRationalContents (,) byteAlign) in
+			\byteAlign components -> liftM ExifRationalList $ readManyInternal byteAlign components
 	}
 
 -- ascii string is special for now.
@@ -519,12 +540,6 @@ decodeEntry byteAlign tiffHeaderStart location entry = do
 			Nothing -> return $ ExifUnknown (entryFormat entry) (entryNoComponents entry) contentsInt
 	return (exifTag, tagValue)
 
-combine :: [ExifValue] -> ExifValue
-combine (x:[]) = x
-combine xs@(ExifNumber _:_) = ExifNumberList $ fmap (\(ExifNumber x) -> x) xs
-combine xs@(ExifRational _ _:_) = ExifRationalList $ fmap (\(ExifRational a b) -> (a,b)) xs
-combine _ = error "Combine pattern fail. Should be impossible, please report."
-
 getHandler :: Word16 -> Maybe ValueHandler
 getHandler typeId = find ((==typeId) . dataTypeId) valueHandlers
 
@@ -538,10 +553,11 @@ decodeEntryWithHandler byteAlign tiffHeaderStart handler entry = do
 
 parseInline :: ByteAlign -> ValueHandler -> IfEntry -> B.ByteString -> ExifValue
 parseInline byteAlign handler entry bytestring =
-	combine $ fromJust $ runMaybeGet decodeCount bytestring
+	fromJust $ runMaybeGet getter bytestring
 	where
-		decodeCount = count (entryNoComponents entry) (parser byteAlign)
-		parser = parserSingle handler
+		getter = case entryNoComponents entry of
+			1 -> readSingle handler byteAlign
+			_ -> readMany handler byteAlign $ entryNoComponents entry
 
 parseOffset :: ByteAlign -> Int -> ValueHandler -> IfEntry -> Get ExifValue
 parseOffset byteAlign tiffHeaderStart handler entry = do
