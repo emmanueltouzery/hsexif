@@ -13,6 +13,7 @@ module Graphics.HsExif (
 	getOrientation,
 	ImageOrientation(..),
 	RotationDirection(..),
+	readGpsLatitudeLongitude,
 
 	-- * The ExifValue type
 	ExifValue(..),
@@ -748,6 +749,29 @@ getOrientation exifData = do
 		ExifNumber 7 -> Just $ MirrorRotation Ninety
 		ExifNumber 8 -> Just $ Rotation Ninety
 		_ -> Nothing
+
+-- | Extract the GPS latitude and longitude where the picture was taken
+-- (if it is present in the EXIF)
+readGpsLatitudeLongitude :: Map ExifTag ExifValue -> Maybe (Double, Double)
+readGpsLatitudeLongitude exifData = do
+	(ExifText latRef) <- Map.lookup gpsLatitudeRef exifData
+	latDec <- liftM gpsDecodeToDecimalDegrees $ Map.lookup gpsLatitude exifData
+	let signedLatDec = case latRef of
+		"S" -> -latDec
+		_ -> latDec
+	(ExifText longRef) <- Map.lookup gpsLongitudeRef exifData
+	longDec <- liftM gpsDecodeToDecimalDegrees $ Map.lookup gpsLongitude exifData
+	let signedLongDec = case longRef of
+		"W" -> -longDec
+		_ -> longDec
+	return (signedLatDec, signedLongDec)
+
+gpsDecodeToDecimalDegrees :: ExifValue -> Double
+gpsDecodeToDecimalDegrees (ExifRationalList intPairs) = floatings !! 0 + floatings !! 1 / 60 + floatings !! 2 / 3600
+	where
+		floatings = fmap (uncurry intsToFloating) intPairs
+		intsToFloating n d = (fromIntegral n) / (fromIntegral d)
+gpsDecodeToDecimalDegrees _ = error "gpsDecodeToDecimalDegrees not called on a rational list!?" -- no way to prevent this at compile time???
 
 -- $intro
 --

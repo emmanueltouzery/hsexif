@@ -16,8 +16,10 @@ main = do
 	imageContents <- B.readFile "tests/test.jpg"
 	noExif <- B.readFile "tests/noexif.jpg"
 	png <- B.readFile "tests/test.png"
+	gps <- B.readFile "tests/gps.jpg"
 	let parseExifCorrect = (\(Right x) -> x) . parseExif
 	let exifData = parseExifCorrect imageContents
+	let gpsExifData = parseExifCorrect gps
 	hspec $ do
 		describe "not a JPG" $ testNotAJpeg png
 		describe "no EXIF" $ testNoExif noExif
@@ -25,6 +27,7 @@ main = do
 		describe "extract picture date" $ testDate exifData
 		describe "image orientation" $ testOrientation exifData
 		describe "read exif date time" $ testReadExifDateTime
+		describe "read GPS lat long" $ testReadGpsLatLong gpsExifData
 
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
@@ -108,5 +111,14 @@ testReadExifDateTime = it "reads exif date time" $ do
 	assertEqual' (Just $ LocalTime (fromGregorian 2013 10 2) (TimeOfDay 20 33 33)) (readExifDateTime "2013:10:02 20:33:33")
 	assertEqual' Nothing (readExifDateTime "2013:10:02 20:33:3")
 
+testReadGpsLatLong :: Map ExifTag ExifValue -> Spec
+testReadGpsLatLong exifData = it "reads gps latitude longitude" $ do
+	let (Just (lat,long)) = readGpsLatitudeLongitude exifData
+	assertBool' $ 50.2179 < lat && 50.2180 > lat
+	assertBool' $ -5.031 > long && -5.032 < long 
+
 assertEqual' :: (Show a, Eq a) => a -> a -> Assertion
 assertEqual' = assertEqual "doesn't match"
+
+assertBool' :: Bool -> Assertion
+assertBool' = assertBool "doesn't match"
