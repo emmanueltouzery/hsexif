@@ -611,7 +611,6 @@ signedRationalValueHandler = ValueHandler
 			\byteAlign components -> liftM ExifRationalList $ readManyInternal byteAlign components
 	}
 
--- ascii string is special for now.
 valueHandlers :: [ValueHandler]
 valueHandlers =
 	[
