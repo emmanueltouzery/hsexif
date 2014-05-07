@@ -37,6 +37,41 @@ module Graphics.HsExif (
 	copyright,
 	digitalZoomRatio,
 	focalLengthIn35mmFilm, 
+	artist,
+
+	-- * GPS related exif tags
+
+	gpsVersionID,
+	gpsLatitudeRef,
+	gpsLatitude,
+	gpsLongitudeRef,
+	gpsLongitude,
+	gpsAltitudeRef,
+	gpsAltitude,
+	gpsTimeStamp,
+	gpsSatellites,
+	gpsStatus,
+	gpsMeasureMode,
+	gpsDop,
+	gpsSpeedRef,
+	gpsSpeed,
+	gpsTrackRef,
+	gpsTrack,
+	gpsImgDirectionRef,
+	gpsImgDirection,
+	gpsMapDatum,
+	gpsDestLatitudeRef,
+	gpsDestLatitude,
+	gpsDestLongitudeRef,
+	gpsDestLongitude,
+	gpsDestBearingRef,
+	gpsDestBearing,
+	gpsDestDistanceRef,
+	gpsDestDistance,
+	gpsProcessingMethod,
+	gpsAreaInformation,
+	gpsDateStamp,
+	gpsDifferential,
 
 	-- * Less useful exif tags
 
@@ -326,6 +361,9 @@ exifSubIfdTag d = ExifTag ExifSubIFD (Just d)
 exifIfd0Tag :: String -> Word16 -> ExifTag
 exifIfd0Tag d = ExifTag IFD0 (Just d)
 
+exifGpsTag :: String -> Word16 -> ExifTag
+exifGpsTag d = ExifTag GpsSubIFD (Just d)
+
 exposureTime		= exifSubIfdTag "exposureTime" 0x829a
 fnumber			= exifSubIfdTag "fnumber" 0x829d
 exposureProgram		= exifSubIfdTag "exposureProgram" 0x8822
@@ -393,15 +431,48 @@ yResolution		= exifIfd0Tag "xResolution" 0x011b
 resolutionUnit		= exifIfd0Tag "resolutionUnit" 0x0128
 software		= exifIfd0Tag "software" 0x0131
 dateTime		= exifIfd0Tag "dateTime" 0x0132
+artist			= exifIfd0Tag "artist" 0x013b
 whitePoint		= exifIfd0Tag "whitePoint" 0x013e
 primaryChromaticities	= exifIfd0Tag "primaryChromaticities" 0x013f
 yCbCrCoefficients	= exifIfd0Tag "yCbCrCoefficients" 0x0211
 yCbCrPositioning	= exifIfd0Tag "yCbCrPositioning" 0x0213
 referenceBlackWhite	= exifIfd0Tag "referenceBlackWhite" 0x0214
 copyright		= exifIfd0Tag "copyright" 0x8298
-exifIfdOffset		= exifIfd0Tag "exifOffset" 0x8769
+exifIfdOffset		= exifIfd0Tag "exifIfdOffset" 0x8769
 gpsTagOffset		= exifIfd0Tag "gpsTagOffset" 0x8825
 printImageMatching	= exifIfd0Tag "printImageMatching" 0xc4a5
+
+gpsVersionID	= exifGpsTag "gpsVersionID" 0x0000
+gpsLatitudeRef	= exifGpsTag "gpsLatitudeRef" 0x0001
+gpsLatitude	= exifGpsTag "gpsLatitude" 0x0002
+gpsLongitudeRef	= exifGpsTag "gpsLongitudeRef" 0x0003
+gpsLongitude	= exifGpsTag "gpsLongitude" 0x0004
+gpsAltitudeRef	= exifGpsTag "gpsAltitudeRef" 0x0005
+gpsAltitude	= exifGpsTag "gpsAltitude" 0x0006
+gpsTimeStamp	= exifGpsTag "gpsTimeStamp" 0x0007
+gpsSatellites	= exifGpsTag "gpsSatellites" 0x0008
+gpsStatus	= exifGpsTag "gpsStatus" 0x0009
+gpsMeasureMode	= exifGpsTag "gpsMeasureMode" 0x000a
+gpsDop		= exifGpsTag "gpsDop" 0x000b
+gpsSpeedRef	= exifGpsTag "gpsSpeedRef" 0x000c
+gpsSpeed	= exifGpsTag "gpsSpeed" 0x000d
+gpsTrackRef	= exifGpsTag "gpsTrackRef" 0x000e
+gpsTrack	= exifGpsTag "gpsTrack" 0x000f
+gpsImgDirectionRef= exifGpsTag "gpsImgDirectionRef" 0x0010
+gpsImgDirection	= exifGpsTag "gpsImgDirection" 0x0011
+gpsMapDatum	= exifGpsTag "gpsMapDatum" 0x0012
+gpsDestLatitudeRef= exifGpsTag "gpsDestLatitudeRef" 0x0013
+gpsDestLatitude	= exifGpsTag "gpsDestLatitude" 0x0014
+gpsDestLongitudeRef= exifGpsTag "gpsDestLongitudeRef" 0x0015
+gpsDestLongitude= exifGpsTag "gpsDestLongitude" 0x0016
+gpsDestBearingRef= exifGpsTag "gpsDestBearingRef" 0x0017
+gpsDestBearing	= exifGpsTag "gpsDestBearing" 0x0018
+gpsDestDistanceRef= exifGpsTag "gpsDestDistanceRef" 0x0019
+gpsDestDistance	= exifGpsTag "gpsDestDistance" 0x001a
+gpsProcessingMethod= exifGpsTag "gpsProcessingMethod" 0x001b
+gpsAreaInformation= exifGpsTag "gpsAreaInformation" 0x001c
+gpsDateStamp	= exifGpsTag "gpsDateStamp" 0x001d
+gpsDifferential	= exifGpsTag "gpsDifferential" 0x001e
 
 allExifTags :: [ExifTag]
 allExifTags = [exposureTime, fnumber, exposureProgram, isoSpeedRatings,
@@ -421,7 +492,14 @@ allExifTags = [exposureTime, fnumber, exposureProgram, isoSpeedRatings,
 	imageUniqueId, exifInteroperabilityOffset, imageDescription,
 	xResolution, yResolution, resolutionUnit, dateTime, whitePoint,
 	primaryChromaticities, yCbCrPositioning, yCbCrCoefficients, referenceBlackWhite,
-	exifIfdOffset, printImageMatching, gpsTagOffset]
+	exifIfdOffset, printImageMatching, gpsTagOffset, artist,
+	gpsVersionID, gpsLatitudeRef, gpsLatitude, gpsLongitudeRef, gpsLongitude,
+	gpsAltitudeRef, gpsAltitude, gpsTimeStamp, gpsSatellites, gpsStatus,
+	gpsMeasureMode, gpsDop, gpsSpeedRef, gpsSpeed, gpsTrackRef, gpsTrack,
+	gpsImgDirectionRef, gpsImgDirection, gpsMapDatum, gpsDestLatitudeRef,
+	gpsDestLatitude, gpsDestLongitudeRef, gpsDestLongitude, gpsDestBearingRef,
+	gpsDestBearing, gpsDestDistanceRef, gpsDestDistance, gpsProcessingMethod,
+	gpsAreaInformation, gpsDateStamp, gpsDifferential]
 
 getExifTag :: TagLocation -> Word16 -> ExifTag
 getExifTag l v = fromMaybe (ExifTag l Nothing v) $ find (isSameTag l v) allExifTags
