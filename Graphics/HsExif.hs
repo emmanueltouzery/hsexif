@@ -575,9 +575,8 @@ parseOffset byteAlign tiffHeaderStart handler entry = do
 	let contentsInt = fromIntegral $ toInteger $ entryContents entry
 	curPos <- liftM fromIntegral bytesRead
 	skip $ contentsInt + tiffHeaderStart - curPos
-	bytestring <- getByteString (entryNoComponents entry * dataLength handler)
-	return $ parseInline byteAlign handler entry
-		(B.pack $ fmap (fromIntegral . ord) $ Char8.unpack bytestring) -- TODO ugly and evil
+	bytestring <- getLazyByteString (fromIntegral $ entryNoComponents entry * dataLength handler)
+	return $ parseInline byteAlign handler entry bytestring
 
 signedInt32ToInt :: Word32 -> Int
 signedInt32ToInt w = fromIntegral (fromIntegral w :: Int32)
