@@ -434,6 +434,14 @@ unsignedByteValueHandler = ValueHandler
 		readMany = readNumberList (\_ -> getWord8)
 	}
 
+asciiStringValueHandler = ValueHandler
+	{
+		dataTypeId = 2,
+		dataLength = 1,
+		readSingle = \ba -> readMany asciiStringValueHandler ba 1,
+		readMany = \_ components -> liftM (ExifText . Char8.unpack) (getByteString (components-1))
+	}
+
 unsignedShortValueHandler = ValueHandler
 	{
 		dataTypeId = 3,
@@ -511,6 +519,7 @@ valueHandlers :: [ValueHandler]
 valueHandlers =
 	[
 		unsignedByteValueHandler,
+		asciiStringValueHandler,
 		unsignedShortValueHandler,
 		unsignedLongValueHandler,
 		unsignedRationalValueHandler,
@@ -528,14 +537,7 @@ decodeEntry byteAlign tiffHeaderStart location entry = do
 	-- because I only know how to skip ahead, I hope the entries
 	-- are always sorted in order of the offsets to their values...
 	-- (maybe lookAhead could help here?)
-	tagValue <- case entryFormat entry of
-		2 -> do -- ascii string
-		        -- TODO it's completely possible to have <=4 bytes
-		        -- string that would work without offset! support this!
-			curPos <- liftM fromIntegral bytesRead
-			skip $ contentsInt + tiffHeaderStart - curPos
-			liftM (ExifText . Char8.unpack) (getByteString ((entryNoComponents entry)-1))
-		typeId@_ -> case getHandler typeId of
+	tagValue <- case getHandler $ entryFormat entry of
 			Just handler -> decodeEntryWithHandler byteAlign tiffHeaderStart handler entry
 			Nothing -> return $ ExifUnknown (entryFormat entry) (entryNoComponents entry) contentsInt
 	return (exifTag, tagValue)
