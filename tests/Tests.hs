@@ -26,7 +26,7 @@ main = do
 		describe "basic parsing" $ testBasic imageContents
 		describe "extract picture date" $ testDate exifData
 		describe "image orientation" $ testOrientation exifData
-		describe "read exif date time" $ testReadExifDateTime
+		describe "read exif date time" testReadExifDateTime
 		describe "read GPS lat long" $ testReadGpsLatLong gpsExifData
 
 testNotAJpeg :: B.ByteString -> Spec
@@ -94,7 +94,7 @@ testBasic imageContents = it "parses a simple JPEG" $ do
 	where
 		-- the makerNote is HUGE. so test it separately.
 		parsed = (\(Right x) -> x) $ parseExif imageContents
-		cleanedParsed = Map.fromList $ filter (\(a,_) -> not (a==makerNote)) $ Map.toList parsed
+		cleanedParsed = Map.fromList $ filter (\(a,_) -> (a/=makerNote)) $ Map.toList parsed
 		makerNoteV = (\(Just (ExifUndefined x)) -> x) $ Map.lookup makerNote parsed
 
 testDate :: Map ExifTag ExifValue -> Spec
