@@ -642,10 +642,10 @@ getHandler typeId = find ((==typeId) . dataTypeId) valueHandlers
 decodeEntryWithHandler :: ByteAlign -> Int -> ValueHandler -> IfEntry -> Get ExifValue
 decodeEntryWithHandler byteAlign tiffHeaderStart handler entry = do
 	if dataLength handler * (entryNoComponents entry) <= 4
-		then return $ parseInline byteAlign handler entry inlineBs
+		then do
+			let inlineBs = runPut $ putWord32 byteAlign $ entryContents entry
+			return $ parseInline byteAlign handler entry inlineBs
 		else parseOffset byteAlign tiffHeaderStart handler entry
-	where
-		inlineBs = runPut $ putWord32 byteAlign $ entryContents entry
 
 parseInline :: ByteAlign -> ValueHandler -> IfEntry -> B.ByteString -> ExifValue
 parseInline byteAlign handler entry bytestring =
