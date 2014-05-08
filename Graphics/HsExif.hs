@@ -142,7 +142,7 @@ import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString as BS
-import Control.Monad (liftM, unless)
+import Control.Monad (liftM, unless, replicateM)
 import qualified Data.ByteString.Char8 as Char8
 import Data.Word
 import Data.Char (isDigit, ord, chr)
@@ -239,7 +239,7 @@ getWord32 :: ByteAlign -> Get Word32
 getWord32 Intel = getWord32le
 getWord32 Motorola = getWord32be
 
-putWord32 :: ByteAlign -> (Word32 -> Put)
+putWord32 :: ByteAlign -> Word32 -> Put
 putWord32 Intel = putWord32le
 putWord32 Motorola = putWord32be
 
@@ -514,7 +514,8 @@ data ValueHandler = ValueHandler
 		readMany :: ByteAlign -> Int -> Get ExifValue
 	}
 
-readNumberList decoder = \byteAlign components -> liftM (ExifNumberList . fmap fromIntegral)
+readNumberList :: Integral a => (ByteAlign -> Get a) -> ByteAlign -> Int -> Get ExifValue
+readNumberList decoder byteAlign components = liftM (ExifNumberList . fmap fromIntegral)
 			$ count components (decoder byteAlign)
 
 unsignedByteValueHandler = ValueHandler
@@ -522,7 +523,7 @@ unsignedByteValueHandler = ValueHandler
 		dataTypeId = 1,
 		dataLength = 1,
 		readSingle = \_ -> liftM (ExifNumber . fromIntegral) getWord8,
-		readMany = readNumberList (\_ -> getWord8)
+		readMany = readNumberList $ const getWord8
 	}
 
 asciiStringValueHandler = ValueHandler
@@ -537,7 +538,7 @@ unsignedShortValueHandler = ValueHandler
 	{
 		dataTypeId = 3,
 		dataLength = 2,
-		readSingle = \byteAlign -> liftM (ExifNumber . fromIntegral) $ getWord16 byteAlign,
+		readSingle = liftM (ExifNumber . fromIntegral) . getWord16,
 		readMany = readNumberList getWord16
 	}
 
@@ -545,7 +546,7 @@ unsignedLongValueHandler = ValueHandler
 	{
 		dataTypeId = 4,
 		dataLength = 4,
-		readSingle = \byteAlign -> liftM (ExifNumber . fromIntegral) $ getWord32 byteAlign,
+		readSingle = liftM (ExifNumber . fromIntegral) . getWord32,
 		readMany = readNumberList getWord32
 	}
 
@@ -568,7 +569,7 @@ signedByteValueHandler = ValueHandler
 		dataTypeId = 6,
 		dataLength = 1,
 		readSingle = \_ -> liftM (ExifNumber . signedInt8ToInt) getWord8,
-		readMany = readNumberList (\_ -> liftM signedInt8ToInt getWord8)
+		readMany = readNumberList (liftM signedInt8ToInt . const getWord8)
 	}
 
 undefinedValueHandler = ValueHandler
@@ -583,16 +584,16 @@ signedShortValueHandler = ValueHandler
 	{
 		dataTypeId = 8,
 		dataLength = 2,
-		readSingle = \byteAlign -> liftM (ExifNumber . signedInt16ToInt) $ getWord16 byteAlign,
-		readMany = readNumberList (\b -> liftM signedInt16ToInt $ getWord16 b)
+		readSingle = liftM (ExifNumber . signedInt16ToInt) . getWord16,
+		readMany = readNumberList (liftM signedInt16ToInt . getWord16)
 	}
 
 signedLongValueHandler = ValueHandler
 	{
 		dataTypeId = 9,
 		dataLength = 4,
-		readSingle = \byteAlign -> liftM (ExifNumber . signedInt32ToInt) $ getWord32 byteAlign,
-		readMany = readNumberList (\b -> liftM signedInt32ToInt $ getWord32 b)
+		readSingle = liftM (ExifNumber . signedInt32ToInt) . getWord32,
+		readMany = readNumberList (liftM signedInt32ToInt . getWord32)
 	}
 
 readSignedRationalContents :: (Int -> Int -> a) -> ByteAlign -> Get a
@@ -640,8 +641,8 @@ getHandler :: Word16 -> Maybe ValueHandler
 getHandler typeId = find ((==typeId) . dataTypeId) valueHandlers
 
 decodeEntryWithHandler :: ByteAlign -> Int -> ValueHandler -> IfEntry -> Get ExifValue
-decodeEntryWithHandler byteAlign tiffHeaderStart handler entry = do
-	if dataLength handler * (entryNoComponents entry) <= 4
+decodeEntryWithHandler byteAlign tiffHeaderStart handler entry =
+	if dataLength handler * entryNoComponents entry <= 4
 		then do
 			let inlineBs = runPut $ putWord32 byteAlign $ entryContents entry
 			return $ parseInline byteAlign handler entry inlineBs
@@ -699,7 +700,7 @@ getExifDateTime = do
 
 count :: Int -> Get a -> Get [a]
 count n p | n <= 0 = return []
-        | otherwise = sequence (replicate n p)
+        | otherwise = replicateM n p
 	
 
 -- | Extract the date and time when the picture was taken
@@ -767,7 +768,7 @@ gpsDecodeToDecimalDegrees :: ExifValue -> Double
 gpsDecodeToDecimalDegrees (ExifRationalList intPairs) = floatings !! 0 + floatings !! 1 / 60 + floatings !! 2 / 3600
 	where
 		floatings = fmap (uncurry intsToFloating) intPairs
-		intsToFloating n d = (fromIntegral n) / (fromIntegral d)
+		intsToFloating n d = fromIntegral n / fromIntegral d
 gpsDecodeToDecimalDegrees _ = error "gpsDecodeToDecimalDegrees not called on a rational list!?" -- no way to prevent this at compile time???
 
 -- $intro
