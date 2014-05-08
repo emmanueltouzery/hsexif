@@ -515,8 +515,7 @@ data ValueHandler = ValueHandler
 	}
 
 readNumberList decoder = \byteAlign components -> liftM (ExifNumberList . fmap fromIntegral)
-			$ readManyInternal byteAlign components
-			where readManyInternal byteAlign components = count components (decoder byteAlign)
+			$ count components (decoder byteAlign)
 
 unsignedByteValueHandler = ValueHandler
 	{
