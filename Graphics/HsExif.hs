@@ -606,8 +606,7 @@ signedRationalValueHandler = ValueHandler
 		dataTypeId = 10,
 		dataLength = 8,
 		readSingle = readSignedRationalContents ExifRational,
-		readMany = let readManyInternal byteAlign components = count components (readSignedRationalContents (,) byteAlign) in
-			\byteAlign components -> liftM ExifRationalList $ readManyInternal byteAlign components
+		readMany = \byteAlign components -> liftM ExifRationalList $ count components (readSignedRationalContents (,) byteAlign)
 	}
 
 valueHandlers :: [ValueHandler]
