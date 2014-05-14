@@ -765,11 +765,11 @@ getGpsLatitudeLongitude exifData = do
 	return (signedLatDec, signedLongDec)
 
 gpsDecodeToDecimalDegrees :: ExifValue -> Maybe Double
-gpsDecodeToDecimalDegrees (ExifRationalList intPairs) = case fmap (uncurry intsToFloating) intPairs of
+gpsDecodeToDecimalDegrees (ExifRationalList intPairs) = case fmap intPairToFloating intPairs of
 			(degrees:minutes:seconds:[]) -> Just $ degrees + minutes / 60 + seconds / 3600
 			_ -> Nothing
 	where
-		intsToFloating n d = fromIntegral n / fromIntegral d
+		intPairToFloating (n, d) = fromIntegral n / fromIntegral d
 gpsDecodeToDecimalDegrees _ = Nothing
 
 -- $intro
