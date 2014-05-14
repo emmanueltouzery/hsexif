@@ -753,23 +753,24 @@ getOrientation exifData = do
 readGpsLatitudeLongitude :: Map ExifTag ExifValue -> Maybe (Double, Double)
 readGpsLatitudeLongitude exifData = do
 	(ExifText latRef) <- Map.lookup gpsLatitudeRef exifData
-	latDec <- liftM gpsDecodeToDecimalDegrees $ Map.lookup gpsLatitude exifData
+	latDec <- Map.lookup gpsLatitude exifData >>= gpsDecodeToDecimalDegrees 
 	let signedLatDec = case latRef of
 		"S" -> -latDec
 		_ -> latDec
 	(ExifText longRef) <- Map.lookup gpsLongitudeRef exifData
-	longDec <- liftM gpsDecodeToDecimalDegrees $ Map.lookup gpsLongitude exifData
+	longDec <- Map.lookup gpsLongitude exifData >>= gpsDecodeToDecimalDegrees 
 	let signedLongDec = case longRef of
 		"W" -> -longDec
 		_ -> longDec
 	return (signedLatDec, signedLongDec)
 
-gpsDecodeToDecimalDegrees :: ExifValue -> Double
-gpsDecodeToDecimalDegrees (ExifRationalList intPairs) = floatings !! 0 + floatings !! 1 / 60 + floatings !! 2 / 3600
+gpsDecodeToDecimalDegrees :: ExifValue -> Maybe Double
+gpsDecodeToDecimalDegrees (ExifRationalList intPairs) = case fmap (uncurry intsToFloating) intPairs of
+			(degrees:minutes:seconds:[]) -> Just $ degrees + minutes / 60 + seconds / 3600
+			_ -> Nothing
 	where
-		floatings = fmap (uncurry intsToFloating) intPairs
 		intsToFloating n d = fromIntegral n / fromIntegral d
-gpsDecodeToDecimalDegrees _ = error "gpsDecodeToDecimalDegrees not called on a rational list!?" -- no way to prevent this at compile time???
+gpsDecodeToDecimalDegrees _ = Nothing
 
 -- $intro
 --

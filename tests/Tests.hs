@@ -28,6 +28,7 @@ main = do
 		describe "image orientation" $ testOrientation exifData
 		describe "read exif date time" testReadExifDateTime
 		describe "read GPS lat long" $ testReadGpsLatLong gpsExifData
+		describe "read GPS lat long -- no data" $ testReadGpsLatLongNoData exifData
 
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
@@ -116,6 +117,10 @@ testReadGpsLatLong exifData = it "reads gps latitude longitude" $ do
 	let (Just (lat,long)) = readGpsLatitudeLongitude exifData
 	assertBool' $ 50.2179 < lat && 50.2180 > lat
 	assertBool' $ -5.031 > long && -5.032 < long 
+
+testReadGpsLatLongNoData :: Map ExifTag ExifValue -> Spec
+testReadGpsLatLongNoData exifData = it "reads gps latitude longitude" $ do
+	assertEqual' Nothing $ readGpsLatitudeLongitude exifData
 
 assertEqual' :: (Show a, Eq a) => a -> a -> Assertion
 assertEqual' = assertEqual "doesn't match"
