@@ -114,13 +114,13 @@ testReadExifDateTime = it "reads exif date time" $ do
 
 testReadGpsLatLong :: Map ExifTag ExifValue -> Spec
 testReadGpsLatLong exifData = it "reads gps latitude longitude" $ do
-	let (Just (lat,long)) = readGpsLatitudeLongitude exifData
+	let (Just (lat,long)) = getGpsLatitudeLongitude exifData
 	assertBool' $ 50.2179 < lat && 50.2180 > lat
 	assertBool' $ -5.031 > long && -5.032 < long 
 
 testReadGpsLatLongNoData :: Map ExifTag ExifValue -> Spec
 testReadGpsLatLongNoData exifData = it "reads gps latitude longitude" $ do
-	assertEqual' Nothing $ readGpsLatitudeLongitude exifData
+	assertEqual' Nothing $ getGpsLatitudeLongitude exifData
 
 assertEqual' :: (Show a, Eq a) => a -> a -> Assertion
 assertEqual' = assertEqual "doesn't match"

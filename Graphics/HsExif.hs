@@ -13,7 +13,7 @@ module Graphics.HsExif (
 	getOrientation,
 	ImageOrientation(..),
 	RotationDirection(..),
-	readGpsLatitudeLongitude,
+	getGpsLatitudeLongitude,
 
 	-- * The ExifValue type
 	ExifValue(..),
@@ -750,8 +750,8 @@ getOrientation exifData = do
 
 -- | Extract the GPS latitude and longitude where the picture was taken
 -- (if it is present in the EXIF)
-readGpsLatitudeLongitude :: Map ExifTag ExifValue -> Maybe (Double, Double)
-readGpsLatitudeLongitude exifData = do
+getGpsLatitudeLongitude :: Map ExifTag ExifValue -> Maybe (Double, Double)
+getGpsLatitudeLongitude exifData = do
 	(ExifText latRef) <- Map.lookup gpsLatitudeRef exifData
 	latDec <- Map.lookup gpsLatitude exifData >>= gpsDecodeToDecimalDegrees 
 	let signedLatDec = case latRef of
