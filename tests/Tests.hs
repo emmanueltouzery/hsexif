@@ -119,7 +119,7 @@ testReadGpsLatLong exifData = it "reads gps latitude longitude" $ do
 	assertBool' $ -5.031 > long && -5.032 < long 
 
 testReadGpsLatLongNoData :: Map ExifTag ExifValue -> Spec
-testReadGpsLatLongNoData exifData = it "reads gps latitude longitude" $ do
+testReadGpsLatLongNoData exifData = it "reads gps latitude longitude" $
 	assertEqual' Nothing $ getGpsLatitudeLongitude exifData
 
 assertEqual' :: (Show a, Eq a) => a -> a -> Assertion
