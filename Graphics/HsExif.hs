@@ -14,6 +14,7 @@ module Graphics.HsExif (
 	ImageOrientation(..),
 	RotationDirection(..),
 	getGpsLatitudeLongitude,
+	formatAsFloatingPoint,
 
 	-- * The ExifValue type
 	ExifValue(..),
@@ -154,6 +155,7 @@ import Data.Map (Map)
 import Data.Time.LocalTime
 import Data.Time.Calendar
 import Numeric (showHex)
+import Text.Printf
 
 -- | An exif value.
 -- 
@@ -771,6 +773,21 @@ gpsDecodeToDecimalDegrees (ExifRationalList intPairs) = case fmap intPairToFloat
 	where
 		intPairToFloating (n, d) = fromIntegral n / fromIntegral d
 gpsDecodeToDecimalDegrees _ = Nothing
+
+-- | Format the exif value as floating-point if it makes sense,
+-- otherwise use the default 'show' implementation.
+-- The first parameter lets you specify how many digits after
+-- the comma to format in the result string.
+-- The special behaviour applies only for 'ExifRational' and 'ExifRationalList'.
+formatAsFloatingPoint :: Int -> ExifValue -> String
+formatAsFloatingPoint n (ExifRational num den) = formatNumDenAsString n num den
+formatAsFloatingPoint n (ExifRationalList values) = intercalate ", " $ foldl' step [] values
+	where step soFar (num,den) = soFar ++ [formatNumDenAsString n num den]
+formatAsFloatingPoint _ v = show v
+
+formatNumDenAsString :: Int -> Int -> Int -> String
+formatNumDenAsString n num den = printf formatString (fromIntegral num / fromIntegral den :: Double)
+	where formatString = "%." ++ show n ++ "f"
 
 -- $intro
 --

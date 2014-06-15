@@ -29,6 +29,7 @@ main = do
 		describe "read exif date time" testReadExifDateTime
 		describe "read GPS lat long" $ testReadGpsLatLong gpsExifData
 		describe "read GPS lat long -- no data" $ testReadGpsLatLongNoData exifData
+		describe "test formatAsFloatingPoint" $ testFormatAsFloatingPoint
 
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
@@ -121,6 +122,11 @@ testReadGpsLatLong exifData = it "reads gps latitude longitude" $ do
 testReadGpsLatLongNoData :: Map ExifTag ExifValue -> Spec
 testReadGpsLatLongNoData exifData = it "reads gps latitude longitude" $
 	assertEqual' Nothing $ getGpsLatitudeLongitude exifData
+
+testFormatAsFloatingPoint :: Spec
+testFormatAsFloatingPoint = it "properly formats as floating point" $ do
+	assertEqual' "0.75" $ formatAsFloatingPoint 2 $ ExifRational 3 4
+	assertEqual' "0.75, -0.50, 0.25" $ formatAsFloatingPoint 2 $ ExifRationalList [(3,4),(-1,2),(1,4)]
 
 assertEqual' :: (Show a, Eq a) => a -> a -> Assertion
 assertEqual' = assertEqual "doesn't match"
