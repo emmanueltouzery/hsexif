@@ -696,6 +696,8 @@ getExifDateTime = do
 	hour <- getCharValue ' ' >> readDigit 2
 	minute <- getCharValue ':' >> readDigit 2
 	second <- getCharValue ':' >> readDigit 2
+	-- the realToFrac is workaround for a GHC 7.8.0->7.8.2 bug:
+	-- https://ghc.haskell.org/trac/ghc/ticket/9231
 	return $ LocalTime (fromGregorian year month day) (TimeOfDay hour minute $ realToFrac second)
 	where
 		readDigit x = liftM read $ count x getDigit
