@@ -696,7 +696,7 @@ getExifDateTime = do
 	hour <- getCharValue ' ' >> readDigit 2
 	minute <- getCharValue ':' >> readDigit 2
 	second <- getCharValue ':' >> readDigit 2
-	return $ LocalTime (fromGregorian year month day) (TimeOfDay hour minute second)
+	return $ LocalTime (fromGregorian year month day) (TimeOfDay hour minute $ realToFrac second)
 	where
 		readDigit x = liftM read $ count x getDigit
 
