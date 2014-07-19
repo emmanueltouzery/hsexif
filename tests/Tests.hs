@@ -21,7 +21,6 @@ main = do
 	let parseExifCorrect = (\(Right x) -> x) . parseExif
 	let exifData = parseExifCorrect imageContents
 	let gpsExifData = parseExifCorrect gps
-	print exifData
 	hspec $ do
 		describe "not a JPG" $ testNotAJpeg png
 		describe "no EXIF" $ testNoExif noExif
