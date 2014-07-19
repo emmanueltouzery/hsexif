@@ -7,6 +7,7 @@ import Text.Printf (printf)
 import qualified Data.Map as Map
 import Data.Char (chr)
 import qualified Data.ByteString as BS
+import Control.Arrow (first)
 
 ppResolutionUnit :: ExifValue -> String
 ppResolutionUnit = fromNumberMap [(1, "No absolute unit"),
@@ -188,7 +189,7 @@ formatVersion _ v@_ = unknown v
 
 fromNumberMap :: [(Int, String)] -> ExifValue -> String
 fromNumberMap m = fromMap convertedMap
-	where convertedMap = fmap (\(n, s) -> (ExifNumber n, s)) m
+	where convertedMap = fmap (first ExifNumber) m
 
 fromMap :: [(ExifValue, String)] -> ExifValue -> String
 fromMap m v = Map.findWithDefault (unknown v) v $ Map.fromList m

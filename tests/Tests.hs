@@ -31,7 +31,7 @@ main = do
 		describe "read exif date time" testReadExifDateTime
 		describe "read GPS lat long" $ testReadGpsLatLong gpsExifData
 		describe "read GPS lat long -- no data" $ testReadGpsLatLongNoData exifData
-		describe "test formatAsFloatingPoint" $ testFormatAsFloatingPoint
+		describe "test formatAsFloatingPoint" testFormatAsFloatingPoint
 		describe "pretty printing" $ testPrettyPrint gpsExifData
 		describe "flash fired" $ testFlashFired exifData
 
@@ -162,7 +162,7 @@ checkPrettyPrinter tag str exifData = assertEqual' (Just str) $ liftM (prettyPri
 testFlashFired :: Map ExifTag ExifValue -> Spec
 testFlashFired exifData = it "properly reads whether the flash was fired" $ do
 	assertEqual' (Just False) $ wasFlashFired exifData
-	assertEqual' Nothing $ wasFlashFired $ Map.empty
+	assertEqual' Nothing $ wasFlashFired Map.empty
 	assertEqual' (Just False) $ wasFlashFired $ makeExifMapWithFlash 0
 	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 1
 	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 5

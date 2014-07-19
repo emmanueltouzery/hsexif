@@ -301,7 +301,7 @@ withFormat :: String -> ExifValue -> String
 withFormat fmt = printf fmt . show
 
 asFpWithFormat :: String -> ExifValue -> String
-asFpWithFormat fmt = printf fmt . (formatAsFloatingPoint 2)
+asFpWithFormat fmt = printf fmt . formatAsFloatingPoint 2
 
 exposureTime		= exifSubIfdTag "exposureTime" 0x829a $ withFormat "%s sec."
 fnumber			= exifSubIfdTag "fnumber" 0x829d $ withFormat "f/%s"
