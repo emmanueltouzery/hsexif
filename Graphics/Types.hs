@@ -71,6 +71,9 @@ data ExifTag = ExifTag
 		tagKey :: Word16,
 		-- ^ Exif tag key, the number uniquely identifying this tag.
 		prettyPrinter :: ExifValue -> String
+		-- ^ A function that'll display nicely an exif value for that exif tag.
+		-- For instance for the 'flash' ExifTag, it'll say whether the flash was
+		-- fired or not, if there was return light and so on.
 	}
 
 instance Show ExifTag where

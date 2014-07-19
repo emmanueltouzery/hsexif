@@ -738,9 +738,15 @@ formatNumDenAsString n num den = printf formatString (fromIntegral num / fromInt
 -- If you use the predefined ExifTag values, you don't care about details
 -- of the ExifTag type, however you should check out the 'ExifValue' type.
 --
--- You start from a JPEG file, you can parse its exif tags as a 'Map' of
+-- Regarding the ExifTag type there is however a field of that type that may
+-- interest you: 'prettyPrinter'. It's a function that'll format nicely an exif value
+-- for that exif tag as a String.
+-- For instance for the 'flash' ExifTag, it'll say whether the flash was
+-- fired or not, if there was return light and so on.
+--
+-- Generally speaking, you start from a JPEG file, you can parse its exif tags as a 'Map' of
 -- 'ExifTag' to 'ExifValue' using 'parseExif' or 'parseFileExif'.
 -- You can enumerate the map or 'lookup' the tags that interest you.
 --
 -- There are also a couple of higher-level helpers like 'getOrientation',
--- 'getDateTimeOriginal'.
+-- 'getDateTimeOriginal' and 'getGpsLatitudeLongitude'.
