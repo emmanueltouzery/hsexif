@@ -4,6 +4,8 @@ import qualified Data.ByteString as BS
 import Data.Word
 import Numeric (showHex)
 import Data.Function (on)
+import Data.List
+import Text.Printf (printf)
 
 -- | An exif value.
 -- 
@@ -89,3 +91,18 @@ instance Ord ExifTag where
 		where
 			locCmp = (compare `on` tagLocation) t1 t2 
 			tagCmp = (compare `on` tagKey) t1 t2
+
+-- | Format the exif value as floating-point if it makes sense,
+-- otherwise use the default 'show' implementation.
+-- The first parameter lets you specify how many digits after
+-- the comma to format in the result string.
+-- The special behaviour applies only for 'ExifRational' and 'ExifRationalList'.
+formatAsFloatingPoint :: Int -> ExifValue -> String
+formatAsFloatingPoint n (ExifRational num den) = formatNumDenAsString n num den
+formatAsFloatingPoint n (ExifRationalList values) = intercalate ", " $ foldl' step [] values
+	where step soFar (num,den) = soFar ++ [formatNumDenAsString n num den]
+formatAsFloatingPoint _ v = show v
+
+formatNumDenAsString :: Int -> Int -> Int -> String
+formatNumDenAsString n num den = printf formatString (fromIntegral num / fromIntegral den :: Double)
+	where formatString = "%." ++ show n ++ "f"
