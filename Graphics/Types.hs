@@ -2,6 +2,8 @@ module Graphics.Types where
 
 import qualified Data.ByteString as BS
 import Data.Word
+import Numeric (showHex)
+import Data.Function (on)
 
 -- | An exif value.
 -- 
@@ -43,3 +45,44 @@ instance Show ExifValue where
 	show (ExifNumberList l) = show l
 	show (ExifRationalList l) = show l
 	show (ExifUndefined bs) = show bs
+
+-- | Location of the tag in the JPG file structure.
+-- Normally you don't need to fiddle with this,
+-- except maybe if the library doesn't know the particular
+-- exif tag you're interested in.
+-- Rather check the list of supported exif tags, like
+-- 'exposureTime' and so on.
+data TagLocation = ExifSubIFD | IFD0 | GpsSubIFD
+	deriving (Show, Eq, Ord)
+
+-- | An exif tag. Normally you don't need to fiddle with this,
+-- except maybe if the library doesn't know the particular
+-- exif tag you're interested in.
+-- Rather check the list of supported exif tags, like
+-- 'exposureTime' and so on.
+data ExifTag = ExifTag
+	{
+		tagLocation :: TagLocation,
+		-- ^ In which part of the JPEG file the exif tag was found
+		tagDesc :: Maybe String,
+		-- ^ Description of the exif tag (exposureTime, fnumber...) or if unknown, Nothing.
+		-- This should be purely for debugging purposes, to compare tags use == on ExifTag
+		-- or compare the tagKey.
+		tagKey :: Word16,
+		-- ^ Exif tag key, the number uniquely identifying this tag.
+		prettyPrinter :: ExifValue -> String
+	}
+
+instance Show ExifTag where
+	show (ExifTag _ (Just d) _ _) = d
+	show (ExifTag l _ v _) = "Unknown tag, location: " ++ show l
+		++ ", value: 0x" ++ showHex v ""
+
+instance Eq ExifTag where
+	t1 == t2 = tagKey t1 == tagKey t2 && tagLocation t1 == tagLocation t2
+
+instance Ord ExifTag where
+	compare t1 t2 = if locCmp /= EQ then locCmp else tagCmp
+		where
+			locCmp = (compare `on` tagLocation) t1 t2 
+			tagCmp = (compare `on` tagKey) t1 t2
