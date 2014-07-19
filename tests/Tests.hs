@@ -10,6 +10,7 @@ import Data.Map (Map)
 import Data.Time.LocalTime
 import Data.Time.Calendar
 import Data.Char (chr)
+import Control.Monad (liftM)
 
 main :: IO ()
 main = do
@@ -20,6 +21,7 @@ main = do
 	let parseExifCorrect = (\(Right x) -> x) . parseExif
 	let exifData = parseExifCorrect imageContents
 	let gpsExifData = parseExifCorrect gps
+	print exifData
 	hspec $ do
 		describe "not a JPG" $ testNotAJpeg png
 		describe "no EXIF" $ testNoExif noExif
@@ -30,6 +32,7 @@ main = do
 		describe "read GPS lat long" $ testReadGpsLatLong gpsExifData
 		describe "read GPS lat long -- no data" $ testReadGpsLatLongNoData exifData
 		describe "test formatAsFloatingPoint" $ testFormatAsFloatingPoint
+		describe "pretty printing" $ testPrettyPrint gpsExifData
 
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
@@ -127,6 +130,33 @@ testFormatAsFloatingPoint :: Spec
 testFormatAsFloatingPoint = it "properly formats as floating point" $ do
 	assertEqual' "0.75" $ formatAsFloatingPoint 2 $ ExifRational 3 4
 	assertEqual' "0.75, -0.50, 0.25" $ formatAsFloatingPoint 2 $ ExifRationalList [(3,4),(-1,2),(1,4)]
+
+testPrettyPrint :: Map ExifTag ExifValue -> Spec
+testPrettyPrint exifData = it "pretty prints many tags properly" $ do
+	checkPrettyPrinter orientation "Top-left" exifData
+	checkPrettyPrinter flash "Flash did not fire, auto mode" exifData
+	checkPrettyPrinter exposureTime "1/200 sec." exifData
+	checkPrettyPrinter exposureProgram "Normal program" exifData
+	checkPrettyPrinter exifVersion "Exif version 2.30" exifData
+	checkPrettyPrinter componentConfiguration "YCbCr" exifData
+	checkPrettyPrinter exposureBiasValue "0.00 EV" exifData
+	checkPrettyPrinter meteringMode "Pattern" exifData
+	checkPrettyPrinter lightSource "Unknown" exifData
+	checkPrettyPrinter flashPixVersion "FlashPix version 1.0" exifData
+	checkPrettyPrinter colorSpace "sRGB" exifData
+	checkPrettyPrinter customRendered "Normal process" exifData
+	checkPrettyPrinter exposureMode "Auto exposure" exifData
+	checkPrettyPrinter whiteBalance "Auto white balance" exifData
+	checkPrettyPrinter sceneCaptureType "Standard" exifData
+	checkPrettyPrinter gainControl "Normal" exifData
+	checkPrettyPrinter contrast "Normal" exifData
+	checkPrettyPrinter saturation "Normal" exifData
+	checkPrettyPrinter resolutionUnit "Inch" exifData
+	checkPrettyPrinter yCbCrPositioning "Co-sited" exifData
+	checkPrettyPrinter gpsLatitude "50.217917" exifData
+
+checkPrettyPrinter :: ExifTag -> String -> Map ExifTag ExifValue -> Assertion
+checkPrettyPrinter tag str exifData = assertEqual' (Just str) $ liftM (prettyPrinter tag) $ Map.lookup tag exifData
 
 assertEqual' :: (Show a, Eq a) => a -> a -> Assertion
 assertEqual' = assertEqual "doesn't match"

@@ -142,7 +142,6 @@ module Graphics.HsExif (
 import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteString.Lazy as B
-import qualified Data.ByteString as BS
 import Control.Monad (liftM, unless, replicateM)
 import qualified Data.ByteString.Char8 as Char8
 import Data.Word
@@ -156,47 +155,10 @@ import Data.Time.LocalTime
 import Data.Time.Calendar
 import Numeric (showHex)
 import Text.Printf
+import Data.Function (on)
 
--- | An exif value.
--- 
--- If you want a string describing the contents
--- of the value, simply use 'show'.
-data ExifValue = ExifNumber !Int
-	-- ^ An exif number. Originally it could have been short, int, signed or not.
-	| ExifText !String
-	-- ^ ASCII text.
-	| ExifRational !Int !Int
-	-- ^ A rational number (numerator, denominator).
-	-- Sometimes we're used to it as rational (exposition time: 1/160),
-	-- sometimes as float (exposure compensation, we rather think -0.75)
-	-- 'show' will display it as 1/160.
-	| ExifNumberList ![Int]
-	-- ^ List of numbers. Originally they could have been short, int, signed or not.
-	| ExifRationalList ![(Int,Int)]
-	-- ^ A list of rational numbers (numerator, denominator).
-	-- Sometimes we're used to it as rational (exposition time: 1/160),
-	-- sometimes as float (exposure compensation, we rather think -0.75)
-	-- 'show' will display it as 1/160.
-	| ExifUndefined !BS.ByteString
-	-- ^ The undefined type in EXIF means that the contents are not
-	-- specified and up to the manufacturer. In effect it's exactly
-	-- a bytestring. Sometimes it's text with ASCII or UNICODE at the
-	-- beginning, often it's binary in nature.
-	| ExifUnknown !Word16 !Int !Int
-	-- ^ Unknown exif value type. All EXIF 2.3 types are
-	-- supported, it could be a newer file.
-	-- The parameters are type, count then value
-	deriving Eq
-
-instance Show ExifValue where
-	show (ExifNumber v) = show v
-	show (ExifText v) = v
-	show (ExifRational n d) = show n ++ "/" ++ show d
-	show (ExifUnknown t c v) = show "Unknown exif type. Type: " ++ show t 
-		++ " count: " ++ show c ++ " value: " ++ show v
-	show (ExifNumberList l) = show l
-	show (ExifRationalList l) = show l
-	show (ExifUndefined bs) = show bs
+import Graphics.Types (ExifValue(..))
+import Graphics.PrettyPrinters
 
 -- see http://www.media.mit.edu/pia/Research/deepview/exif.html
 -- and http://www.cipa.jp/std/documents/e/DC-008-2012_E.pdf
@@ -348,134 +310,149 @@ data ExifTag = ExifTag
 		-- ^ Description of the exif tag (exposureTime, fnumber...) or if unknown, Nothing.
 		-- This should be purely for debugging purposes, to compare tags use == on ExifTag
 		-- or compare the tagKey.
-		tagKey :: Word16
+		tagKey :: Word16,
 		-- ^ Exif tag key, the number uniquely identifying this tag.
+		prettyPrinter :: ExifValue -> String
 	}
-	deriving (Eq, Ord)
 
 instance Show ExifTag where
-	show (ExifTag _ (Just d) _) = d
-	show (ExifTag l _ v) = "Unknown tag, location: " ++ show l
+	show (ExifTag _ (Just d) _ _) = d
+	show (ExifTag l _ v _) = "Unknown tag, location: " ++ show l
 		++ ", value: 0x" ++ showHex v ""
 
-exifSubIfdTag :: String -> Word16 -> ExifTag
+instance Eq ExifTag where
+	t1 == t2 = tagKey t1 == tagKey t2 && tagLocation t1 == tagLocation t2
+
+instance Ord ExifTag where
+	compare t1 t2 = if locCmp /= EQ then locCmp else tagCmp
+		where
+			locCmp = (compare `on` tagLocation) t1 t2 
+			tagCmp = (compare `on` tagKey) t1 t2
+
+exifSubIfdTag :: String -> Word16 -> (ExifValue -> String)-> ExifTag
 exifSubIfdTag d = ExifTag ExifSubIFD (Just d)
 
-exifIfd0Tag :: String -> Word16 -> ExifTag
+exifIfd0Tag :: String -> Word16 -> (ExifValue -> String) -> ExifTag
 exifIfd0Tag d = ExifTag IFD0 (Just d)
 
-exifGpsTag :: String -> Word16 -> ExifTag
+exifGpsTag :: String -> Word16 -> (ExifValue -> String) -> ExifTag
 exifGpsTag d = ExifTag GpsSubIFD (Just d)
 
-exposureTime		= exifSubIfdTag "exposureTime" 0x829a
-fnumber			= exifSubIfdTag "fnumber" 0x829d
-exposureProgram		= exifSubIfdTag "exposureProgram" 0x8822
-spectralSensitivity	= exifSubIfdTag "spectralSensitivity" 0x8824
-isoSpeedRatings		= exifSubIfdTag "isoSpeedRatings" 0x8827
-oecf			= exifSubIfdTag "OECF" 0x8828
-exifVersion		= exifSubIfdTag "exifVersion" 0x9000
-dateTimeOriginal	= exifSubIfdTag "dateTimeOriginal" 0x9003
-dateTimeDigitized	= exifSubIfdTag "dateTimeDigitized" 0x9004
-componentConfiguration	= exifSubIfdTag "componentConfiguration" 0x9101
-compressedBitsPerPixel	= exifSubIfdTag "compressedBitsPerPixel" 0x9102
-shutterSpeedValue	= exifSubIfdTag "shutterSpeedValue" 0x9201
-apertureValue		= exifSubIfdTag "apertureValue" 0x9202
-brightnessValue		= exifSubIfdTag "brightnessValue" 0x9203
-exposureBiasValue	= exifSubIfdTag "exposureBiasValue" 0x9204
-maxApertureValue	= exifSubIfdTag "maxApertureValue" 0x9205
-subjectDistance		= exifSubIfdTag "subjectDistance" 0x9206
-meteringMode		= exifSubIfdTag "meteringMode" 0x9207
-lightSource		= exifSubIfdTag "lightSource" 0x9208
-flash			= exifSubIfdTag "flash" 0x9209
-focalLength		= exifSubIfdTag "focalLength" 0x920a
-subjectArea		= exifSubIfdTag "subjectArea" 0x9214
-makerNote		= exifSubIfdTag "makerNote" 0x927c
-userComment		= exifSubIfdTag "userComment" 0x9286
-subSecTime		= exifSubIfdTag "subSecTime" 0x9290
-subSecTimeOriginal	= exifSubIfdTag "subSecTimeOriginal" 0x9291
-subSecTimeDigitized	= exifSubIfdTag "subSecTimeDigitized" 0x9292
-flashPixVersion		= exifSubIfdTag "flashPixVersion" 0xa000
-colorSpace		= exifSubIfdTag "colorSpace" 0xa001
-exifImageWidth		= exifSubIfdTag "exifImageWidth" 0xa002
-exifImageHeight		= exifSubIfdTag "exifImageHeight" 0xa003
-relatedSoundFile	= exifSubIfdTag "relatedSoundFile" 0xa004
-flashEnergy		= exifSubIfdTag "flashEnergy" 0xa20b
-spatialFrequencyResponse= exifSubIfdTag "spatialFrequencyResponse" 0xa20c
-focalPlaneXResolution	= exifSubIfdTag "focalPlaneXResolution" 0xa20e
-focalPlaneYResolution	= exifSubIfdTag "focalPlaneYResolution" 0xa20f
-focalPlaneResolutionUnit= exifSubIfdTag "focalPlaneResolutionUnit" 0xa210
-subjectLocation		= exifSubIfdTag "subjectLocation" 0xa214
-exposureIndex		= exifSubIfdTag "exposureIndex" 0xa215
-sensingMethod		= exifSubIfdTag "sensingMethod" 0xa217
-fileSource		= exifSubIfdTag "fileSource" 0xa300
-sceneType		= exifSubIfdTag "sceneType" 0xa301
-cfaPattern		= exifSubIfdTag "cfaPattern" 0xa302
-customRendered		= exifSubIfdTag "customRendered" 0xa401
-exposureMode		= exifSubIfdTag "exposureMode" 0xa402
-whiteBalance		= exifSubIfdTag "whiteBalance" 0xa403
-digitalZoomRatio	= exifSubIfdTag "digitalZoomRatio" 0xa404
-focalLengthIn35mmFilm	= exifSubIfdTag "focalLengthIn35mmFilm" 0xa405
-sceneCaptureType	= exifSubIfdTag "sceneCaptureType" 0xa406
-gainControl		= exifSubIfdTag "gainControl" 0xa407
-contrast		= exifSubIfdTag "contrast" 0xa408
-saturation		= exifSubIfdTag "saturation" 0xa409
-sharpness		= exifSubIfdTag "sharpness" 0xa40a
-deviceSettingDescription= exifSubIfdTag "deviceSettingDescription" 0xa40b
-subjectDistanceRange	= exifSubIfdTag "subjectDistanceRange" 0xa40c
-imageUniqueId		= exifSubIfdTag "imageUniqueId" 0xa420
-exifInteroperabilityOffset=exifSubIfdTag "exifInteroperabilityOffset" 0xa005
+withFormat :: String -> ExifValue -> String
+withFormat fmt = printf fmt . show
 
-imageDescription	= exifIfd0Tag "imageDescription" 0x010e
-make			= exifIfd0Tag "make" 0x010f
-model			= exifIfd0Tag "model" 0x0110
-orientation		= exifIfd0Tag "orientation" 0x0112
-xResolution		= exifIfd0Tag "xResolution" 0x011a
-yResolution		= exifIfd0Tag "xResolution" 0x011b
-resolutionUnit		= exifIfd0Tag "resolutionUnit" 0x0128
-software		= exifIfd0Tag "software" 0x0131
-dateTime		= exifIfd0Tag "dateTime" 0x0132
-artist			= exifIfd0Tag "artist" 0x013b
-whitePoint		= exifIfd0Tag "whitePoint" 0x013e
-primaryChromaticities	= exifIfd0Tag "primaryChromaticities" 0x013f
-yCbCrCoefficients	= exifIfd0Tag "yCbCrCoefficients" 0x0211
-yCbCrPositioning	= exifIfd0Tag "yCbCrPositioning" 0x0213
-referenceBlackWhite	= exifIfd0Tag "referenceBlackWhite" 0x0214
-copyright		= exifIfd0Tag "copyright" 0x8298
-exifIfdOffset		= exifIfd0Tag "exifIfdOffset" 0x8769
-gpsTagOffset		= exifIfd0Tag "gpsTagOffset" 0x8825
-printImageMatching	= exifIfd0Tag "printImageMatching" 0xc4a5
+asFpWithFormat :: String -> ExifValue -> String
+asFpWithFormat fmt = printf fmt . (formatAsFloatingPoint 2)
 
-gpsVersionID		= exifGpsTag "gpsVersionID" 0x0000
-gpsLatitudeRef		= exifGpsTag "gpsLatitudeRef" 0x0001
-gpsLatitude		= exifGpsTag "gpsLatitude" 0x0002
-gpsLongitudeRef		= exifGpsTag "gpsLongitudeRef" 0x0003
-gpsLongitude		= exifGpsTag "gpsLongitude" 0x0004
-gpsAltitudeRef		= exifGpsTag "gpsAltitudeRef" 0x0005
-gpsAltitude		= exifGpsTag "gpsAltitude" 0x0006
-gpsTimeStamp		= exifGpsTag "gpsTimeStamp" 0x0007
-gpsSatellites		= exifGpsTag "gpsSatellites" 0x0008
-gpsStatus		= exifGpsTag "gpsStatus" 0x0009
-gpsMeasureMode		= exifGpsTag "gpsMeasureMode" 0x000a
-gpsDop			= exifGpsTag "gpsDop" 0x000b
-gpsSpeedRef		= exifGpsTag "gpsSpeedRef" 0x000c
-gpsSpeed		= exifGpsTag "gpsSpeed" 0x000d
-gpsTrackRef		= exifGpsTag "gpsTrackRef" 0x000e
-gpsTrack		= exifGpsTag "gpsTrack" 0x000f
-gpsImgDirectionRef	= exifGpsTag "gpsImgDirectionRef" 0x0010
-gpsImgDirection		= exifGpsTag "gpsImgDirection" 0x0011
-gpsMapDatum		= exifGpsTag "gpsMapDatum" 0x0012
-gpsDestLatitudeRef	= exifGpsTag "gpsDestLatitudeRef" 0x0013
-gpsDestLatitude		= exifGpsTag "gpsDestLatitude" 0x0014
-gpsDestLongitudeRef	= exifGpsTag "gpsDestLongitudeRef" 0x0015
-gpsDestLongitude	= exifGpsTag "gpsDestLongitude" 0x0016
-gpsDestBearingRef	= exifGpsTag "gpsDestBearingRef" 0x0017
-gpsDestBearing		= exifGpsTag "gpsDestBearing" 0x0018
-gpsDestDistanceRef	= exifGpsTag "gpsDestDistanceRef" 0x0019
-gpsDestDistance		= exifGpsTag "gpsDestDistance" 0x001a
-gpsProcessingMethod	= exifGpsTag "gpsProcessingMethod" 0x001b
-gpsAreaInformation	= exifGpsTag "gpsAreaInformation" 0x001c
-gpsDateStamp		= exifGpsTag "gpsDateStamp" 0x001d
-gpsDifferential		= exifGpsTag "gpsDifferential" 0x001e
+exposureTime		= exifSubIfdTag "exposureTime" 0x829a $ withFormat "%s sec."
+fnumber			= exifSubIfdTag "fnumber" 0x829d $ withFormat "f/%s"
+exposureProgram		= exifSubIfdTag "exposureProgram" 0x8822 ppExposureProgram
+spectralSensitivity	= exifSubIfdTag "spectralSensitivity" 0x8824 show
+isoSpeedRatings		= exifSubIfdTag "isoSpeedRatings" 0x8827 show
+oecf			= exifSubIfdTag "OECF" 0x8828 show
+exifVersion		= exifSubIfdTag "exifVersion" 0x9000 ppExifVersion
+dateTimeOriginal	= exifSubIfdTag "dateTimeOriginal" 0x9003 show
+dateTimeDigitized	= exifSubIfdTag "dateTimeDigitized" 0x9004 show
+componentConfiguration	= exifSubIfdTag "componentConfiguration" 0x9101 ppComponentConfiguration
+compressedBitsPerPixel	= exifSubIfdTag "compressedBitsPerPixel" 0x9102 (formatAsFloatingPoint 2)
+shutterSpeedValue	= exifSubIfdTag "shutterSpeedValue" 0x9201 $ withFormat "%s sec."
+apertureValue		= exifSubIfdTag "apertureValue" 0x9202 show
+brightnessValue		= exifSubIfdTag "brightnessValue" 0x9203 show
+exposureBiasValue	= exifSubIfdTag "exposureBiasValue" 0x9204 $ asFpWithFormat "%s EV"
+maxApertureValue	= exifSubIfdTag "maxApertureValue" 0x9205 $ withFormat "f/%s"
+subjectDistance		= exifSubIfdTag "subjectDistance" 0x9206 show
+meteringMode		= exifSubIfdTag "meteringMode" 0x9207 ppMeteringMode
+lightSource		= exifSubIfdTag "lightSource" 0x9208 ppLightSource
+flash			= exifSubIfdTag "flash" 0x9209 ppFlash
+focalLength		= exifSubIfdTag "focalLength" 0x920a $ asFpWithFormat "%s mm"
+subjectArea		= exifSubIfdTag "subjectArea" 0x9214 show
+makerNote		= exifSubIfdTag "makerNote" 0x927c show
+userComment		= exifSubIfdTag "userComment" 0x9286 show
+subSecTime		= exifSubIfdTag "subSecTime" 0x9290 show
+subSecTimeOriginal	= exifSubIfdTag "subSecTimeOriginal" 0x9291 show
+subSecTimeDigitized	= exifSubIfdTag "subSecTimeDigitized" 0x9292 show
+flashPixVersion		= exifSubIfdTag "flashPixVersion" 0xa000 ppFlashPixVersion
+colorSpace		= exifSubIfdTag "colorSpace" 0xa001 ppColorSpace
+exifImageWidth		= exifSubIfdTag "exifImageWidth" 0xa002 show
+exifImageHeight		= exifSubIfdTag "exifImageHeight" 0xa003 show
+relatedSoundFile	= exifSubIfdTag "relatedSoundFile" 0xa004 show
+flashEnergy		= exifSubIfdTag "flashEnergy" 0xa20b show
+spatialFrequencyResponse= exifSubIfdTag "spatialFrequencyResponse" 0xa20c show
+focalPlaneXResolution	= exifSubIfdTag "focalPlaneXResolution" 0xa20e show
+focalPlaneYResolution	= exifSubIfdTag "focalPlaneYResolution" 0xa20f show
+focalPlaneResolutionUnit= exifSubIfdTag "focalPlaneResolutionUnit" 0xa210 ppFocalPlaneResolutionUnit
+subjectLocation		= exifSubIfdTag "subjectLocation" 0xa214 show
+exposureIndex		= exifSubIfdTag "exposureIndex" 0xa215 show
+sensingMethod		= exifSubIfdTag "sensingMethod" 0xa217 ppSensingMethod
+fileSource		= exifSubIfdTag "fileSource" 0xa300 show
+sceneType		= exifSubIfdTag "sceneType" 0xa301 ppSceneType
+cfaPattern		= exifSubIfdTag "cfaPattern" 0xa302 show
+customRendered		= exifSubIfdTag "customRendered" 0xa401 ppCustomRendered
+exposureMode		= exifSubIfdTag "exposureMode" 0xa402 ppExposureMode
+whiteBalance		= exifSubIfdTag "whiteBalance" 0xa403 ppWhiteBalance
+digitalZoomRatio	= exifSubIfdTag "digitalZoomRatio" 0xa404 show
+focalLengthIn35mmFilm	= exifSubIfdTag "focalLengthIn35mmFilm" 0xa405 $ asFpWithFormat "%s mm"
+sceneCaptureType	= exifSubIfdTag "sceneCaptureType" 0xa406 ppSceneCaptureType
+gainControl		= exifSubIfdTag "gainControl" 0xa407 ppGainControl
+contrast		= exifSubIfdTag "contrast" 0xa408 ppContrastSharpness
+saturation		= exifSubIfdTag "saturation" 0xa409 ppSaturation
+sharpness		= exifSubIfdTag "sharpness" 0xa40a ppContrastSharpness
+deviceSettingDescription= exifSubIfdTag "deviceSettingDescription" 0xa40b show
+subjectDistanceRange	= exifSubIfdTag "subjectDistanceRange" 0xa40c ppSubjectDistanceRange
+imageUniqueId		= exifSubIfdTag "imageUniqueId" 0xa420 show
+exifInteroperabilityOffset=exifSubIfdTag "exifInteroperabilityOffset" 0xa005 show
+
+imageDescription	= exifIfd0Tag "imageDescription" 0x010e show
+make			= exifIfd0Tag "make" 0x010f show
+model			= exifIfd0Tag "model" 0x0110 show
+orientation		= exifIfd0Tag "orientation" 0x0112 ppOrientation
+xResolution		= exifIfd0Tag "xResolution" 0x011a show
+yResolution		= exifIfd0Tag "xResolution" 0x011b show
+resolutionUnit		= exifIfd0Tag "resolutionUnit" 0x0128 ppResolutionUnit
+software		= exifIfd0Tag "software" 0x0131 show
+dateTime		= exifIfd0Tag "dateTime" 0x0132 show
+artist			= exifIfd0Tag "artist" 0x013b show
+whitePoint		= exifIfd0Tag "whitePoint" 0x013e show
+primaryChromaticities	= exifIfd0Tag "primaryChromaticities" 0x013f show
+yCbCrCoefficients	= exifIfd0Tag "yCbCrCoefficients" 0x0211 show
+yCbCrPositioning	= exifIfd0Tag "yCbCrPositioning" 0x0213 ppYCbCrPositioning
+referenceBlackWhite	= exifIfd0Tag "referenceBlackWhite" 0x0214 show
+copyright		= exifIfd0Tag "copyright" 0x8298 show
+exifIfdOffset		= exifIfd0Tag "exifIfdOffset" 0x8769 show
+gpsTagOffset		= exifIfd0Tag "gpsTagOffset" 0x8825 show
+printImageMatching	= exifIfd0Tag "printImageMatching" 0xc4a5 show
+
+gpsVersionID		= exifGpsTag "gpsVersionID" 0x0000 show
+gpsLatitudeRef		= exifGpsTag "gpsLatitudeRef" 0x0001 show
+gpsLatitude		= exifGpsTag "gpsLatitude" 0x0002 ppGpsLongLat
+gpsLongitudeRef		= exifGpsTag "gpsLongitudeRef" 0x0003 show
+gpsLongitude		= exifGpsTag "gpsLongitude" 0x0004 ppGpsLongLat
+gpsAltitudeRef		= exifGpsTag "gpsAltitudeRef" 0x0005 ppGpsAltitudeRef
+gpsAltitude		= exifGpsTag "gpsAltitude" 0x0006 show
+gpsTimeStamp		= exifGpsTag "gpsTimeStamp" 0x0007 show
+gpsSatellites		= exifGpsTag "gpsSatellites" 0x0008 show
+gpsStatus		= exifGpsTag "gpsStatus" 0x0009 show
+gpsMeasureMode		= exifGpsTag "gpsMeasureMode" 0x000a show
+gpsDop			= exifGpsTag "gpsDop" 0x000b show
+gpsSpeedRef		= exifGpsTag "gpsSpeedRef" 0x000c show
+gpsSpeed		= exifGpsTag "gpsSpeed" 0x000d show
+gpsTrackRef		= exifGpsTag "gpsTrackRef" 0x000e show
+gpsTrack		= exifGpsTag "gpsTrack" 0x000f show
+gpsImgDirectionRef	= exifGpsTag "gpsImgDirectionRef" 0x0010 show
+gpsImgDirection		= exifGpsTag "gpsImgDirection" 0x0011 show
+gpsMapDatum		= exifGpsTag "gpsMapDatum" 0x0012 show
+gpsDestLatitudeRef	= exifGpsTag "gpsDestLatitudeRef" 0x0013 show
+gpsDestLatitude		= exifGpsTag "gpsDestLatitude" 0x0014 show
+gpsDestLongitudeRef	= exifGpsTag "gpsDestLongitudeRef" 0x0015 show
+gpsDestLongitude	= exifGpsTag "gpsDestLongitude" 0x0016 show
+gpsDestBearingRef	= exifGpsTag "gpsDestBearingRef" 0x0017 show
+gpsDestBearing		= exifGpsTag "gpsDestBearing" 0x0018 show
+gpsDestDistanceRef	= exifGpsTag "gpsDestDistanceRef" 0x0019 show
+gpsDestDistance		= exifGpsTag "gpsDestDistance" 0x001a show
+gpsProcessingMethod	= exifGpsTag "gpsProcessingMethod" 0x001b show
+gpsAreaInformation	= exifGpsTag "gpsAreaInformation" 0x001c show
+gpsDateStamp		= exifGpsTag "gpsDateStamp" 0x001d show
+gpsDifferential		= exifGpsTag "gpsDifferential" 0x001e show
 
 allExifTags :: [ExifTag]
 allExifTags = [exposureTime, fnumber, exposureProgram, isoSpeedRatings,
@@ -505,8 +482,8 @@ allExifTags = [exposureTime, fnumber, exposureProgram, isoSpeedRatings,
 	gpsAreaInformation, gpsDateStamp, gpsDifferential]
 
 getExifTag :: TagLocation -> Word16 -> ExifTag
-getExifTag l v = fromMaybe (ExifTag l Nothing v) $ find (isSameTag l v) allExifTags
-	where isSameTag l1 v1 (ExifTag l2 _ v2) = l1 == l2 && v1 == v2
+getExifTag l v = fromMaybe (ExifTag l Nothing v show) $ find (isSameTag l v) allExifTags
+	where isSameTag l1 v1 (ExifTag l2 _ v2 _) = l1 == l2 && v1 == v2
 
 data ValueHandler = ValueHandler
 	{
@@ -698,6 +675,8 @@ getExifDateTime = do
 	second <- getCharValue ':' >> readDigit 2
 	-- the realToFrac is workaround for a GHC 7.8.0->7.8.2 bug:
 	-- https://ghc.haskell.org/trac/ghc/ticket/9231
+	-- actually generates a warning and it's good, reminds me to
+	-- remove it someday, since 7.8.3 is out and with the fix.
 	return $ LocalTime (fromGregorian year month day) (TimeOfDay hour minute $ realToFrac second)
 	where
 		readDigit x = liftM read $ count x getDigit
@@ -775,6 +754,10 @@ gpsDecodeToDecimalDegrees (ExifRationalList intPairs) = case fmap intPairToFloat
 	where
 		intPairToFloating (n, d) = fromIntegral n / fromIntegral d
 gpsDecodeToDecimalDegrees _ = Nothing
+
+ppGpsLongLat :: ExifValue -> String
+ppGpsLongLat v = maybe "invalid GPS data" fmt $ gpsDecodeToDecimalDegrees v
+	where fmt = printf "%.6f"
 
 -- | Format the exif value as floating-point if it makes sense,
 -- otherwise use the default 'show' implementation.
