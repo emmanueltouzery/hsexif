@@ -33,6 +33,7 @@ main = do
 		describe "read GPS lat long -- no data" $ testReadGpsLatLongNoData exifData
 		describe "test formatAsFloatingPoint" $ testFormatAsFloatingPoint
 		describe "pretty printing" $ testPrettyPrint gpsExifData
+		describe "flash fired" $ testFlashFired exifData
 
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
@@ -157,6 +158,35 @@ testPrettyPrint exifData = it "pretty prints many tags properly" $ do
 
 checkPrettyPrinter :: ExifTag -> String -> Map ExifTag ExifValue -> Assertion
 checkPrettyPrinter tag str exifData = assertEqual' (Just str) $ liftM (prettyPrinter tag) $ Map.lookup tag exifData
+
+testFlashFired :: Map ExifTag ExifValue -> Spec
+testFlashFired exifData = it "properly reads whether the flash was fired" $ do
+	assertEqual' (Just False) $ wasFlashFired exifData
+	assertEqual' Nothing $ wasFlashFired $ Map.empty
+	assertEqual' (Just False) $ wasFlashFired $ makeExifMapWithFlash 0
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 1
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 5
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 7
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 9
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x0D
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x0F
+	assertEqual' (Just False) $ wasFlashFired $ makeExifMapWithFlash 0x10
+	assertEqual' (Just False) $ wasFlashFired $ makeExifMapWithFlash 0x18
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x19
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x1D
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x1F
+	assertEqual' (Just False) $ wasFlashFired $ makeExifMapWithFlash 0x20
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x41
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x45
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x47
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x4D
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x4F
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x59
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x5D
+	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x5F
+
+makeExifMapWithFlash :: Int -> Map ExifTag ExifValue
+makeExifMapWithFlash flashV = Map.fromList [(flash, ExifNumber flashV)]
 
 assertEqual' :: (Show a, Eq a) => a -> a -> Assertion
 assertEqual' = assertEqual "doesn't match"

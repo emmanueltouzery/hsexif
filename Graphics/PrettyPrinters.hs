@@ -64,7 +64,7 @@ ppFlash :: ExifValue -> String
 ppFlash = fromNumberMap [(0, "Flash did not fire"),
 			(1, "Flash fired"),
 			(5, "Strobe return light not detected"),
-			(7, "Store return light detected"),
+			(7, "Strobe return light detected"),
 			(9, "Flash fired, compulsory flash mode"),
 			(0x0D, "Flash fired, compulsory flash mode, return light not detected"),
 			(0x0F, "Flash fired, compulsory flash mode, return light detected"),

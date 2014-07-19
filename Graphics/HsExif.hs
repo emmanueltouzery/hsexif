@@ -14,6 +14,7 @@ module Graphics.HsExif (
 	ImageOrientation(..),
 	RotationDirection(..),
 	getGpsLatitudeLongitude,
+	wasFlashFired,
 	formatAsFloatingPoint,
 
 	-- * The ExifValue type
@@ -154,6 +155,7 @@ import Data.Map (Map)
 import Data.Time.LocalTime
 import Data.Time.Calendar
 import Text.Printf
+import Data.Bits ((.&.))
 
 import Graphics.Types (ExifValue(..), ExifTag(..), TagLocation(..))
 import Graphics.PrettyPrinters
@@ -688,6 +690,16 @@ getOrientation exifData = do
 		ExifNumber 8 -> Just $ Rotation Ninety
 		_ -> Nothing
 
+-- | Will return Just True if the flash was fired, Just False
+-- if it was not, and Nothing if the file does not contain
+-- the information.
+wasFlashFired :: Map ExifTag ExifValue -> Maybe Bool
+wasFlashFired exifData = do
+	flashVal <- Map.lookup flash exifData
+	case flashVal of
+		ExifNumber n -> Just $ n .&. 1 /= 0
+		_ -> Nothing
+
 -- | Extract the GPS latitude and longitude where the picture was taken
 -- (if it is present in the EXIF)
 getGpsLatitudeLongitude :: Map ExifTag ExifValue -> Maybe (Double, Double)
@@ -749,4 +761,4 @@ formatNumDenAsString n num den = printf formatString (fromIntegral num / fromInt
 -- You can enumerate the map or 'lookup' the tags that interest you.
 --
 -- There are also a couple of higher-level helpers like 'getOrientation',
--- 'getDateTimeOriginal' and 'getGpsLatitudeLongitude'.
+-- 'getDateTimeOriginal', 'wasFlashFired' and 'getGpsLatitudeLongitude'.
