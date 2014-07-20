@@ -16,6 +16,8 @@ module Graphics.HsExif (
 	getGpsLatitudeLongitude,
 	wasFlashFired,
 	formatAsFloatingPoint,
+	getGpsDateTime,
+	parseGpsTime
 
 	-- * The ExifValue type
 	ExifValue(..),
@@ -143,10 +145,10 @@ module Graphics.HsExif (
 import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteString.Lazy as B
-import Control.Monad (liftM, unless, replicateM)
+import Control.Monad (liftM, unless)
 import qualified Data.ByteString.Char8 as Char8
 import Data.Word
-import Data.Char (isDigit, ord, chr)
+import Data.Char (ord)
 import Data.Int (Int32, Int16, Int8)
 import Data.List
 import Data.Maybe (fromMaybe, fromJust) -- TODO try to get rid of fromJust
@@ -158,6 +160,7 @@ import Data.Bits ((.&.))
 
 import Graphics.Types (ExifValue(..), ExifTag(..), TagLocation(..), formatAsFloatingPoint)
 import Graphics.ExifTags
+import Graphics.Helpers
 
 -- see http://www.media.mit.edu/pia/Research/deepview/exif.html
 -- and http://www.cipa.jp/std/documents/e/DC-008-2012_E.pdf
@@ -458,14 +461,6 @@ signedInt16ToInt w = fromIntegral (fromIntegral w :: Int16)
 signedInt8ToInt :: Word8 -> Int
 signedInt8ToInt w = fromIntegral (fromIntegral w :: Int8)
 
--- i had this as runGetM and reusing in parseExif,
--- sadly fail is not implemented for Either.
--- will do for now.
-runMaybeGet :: Get a -> B.ByteString -> Maybe a
-runMaybeGet get bs = case runGetOrFail get bs of
-	Left _ -> Nothing
-	Right (_,_,x) -> Just x
-
 -- | Decode an EXIF date time value.
 -- Will return 'Nothing' in case parsing fails.
 readExifDateTime :: String -> Maybe LocalTime
@@ -484,31 +479,11 @@ getExifDateTime = do
 	-- actually generates a warning and it's good, reminds me to
 	-- remove it someday, since 7.8.3 is out and with the fix.
 	return $ LocalTime (fromGregorian year month day) (TimeOfDay hour minute $ realToFrac second)
-	where
-		readDigit x = liftM read $ count x getDigit
-
-count :: Int -> Get a -> Get [a]
-count n p | n <= 0 = return []
-        | otherwise = replicateM n p
 	
-
 -- | Extract the date and time when the picture was taken
 -- from the EXIF information.
 getDateTimeOriginal :: Map ExifTag ExifValue -> Maybe LocalTime
 getDateTimeOriginal exifData = Map.lookup dateTimeOriginal exifData >>= readExifDateTime . show 
-
-getCharWhere :: (Char->Bool) -> Get Char
-getCharWhere wher = do
-	char <- liftM (chr . fromIntegral) getWord8
-	if wher char
-		then return char
-		else fail "no parse"
-
-getDigit :: Get Char
-getDigit = getCharWhere isDigit
-
-getCharValue :: Char -> Get Char
-getCharValue char = getCharWhere (==char)
 
 data RotationDirection = MinusNinety
 	| Ninety

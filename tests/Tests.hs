@@ -2,7 +2,6 @@
 import Test.Hspec
 import Test.HUnit
 
-import Graphics.HsExif
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString as BS
 import Data.Text (Text)
@@ -14,15 +13,19 @@ import Data.Char (chr)
 import Control.Monad (liftM)
 import Data.List
 
+import Graphics.HsExif
+
 main :: IO ()
 main = do
 	imageContents <- B.readFile "tests/test.jpg"
 	noExif <- B.readFile "tests/noexif.jpg"
 	png <- B.readFile "tests/test.png"
 	gps <- B.readFile "tests/gps.jpg"
+	gps2 <- B.readFile "tests/gps2.jpg"
 	let parseExifCorrect = (\(Right x) -> x) . parseExif
 	let exifData = parseExifCorrect imageContents
 	let gpsExifData = parseExifCorrect gps
+	let gps2ExifData = parseExifCorrect gps2
 	hspec $ do
 		describe "not a JPG" $ testNotAJpeg png
 		describe "no EXIF" $ testNoExif noExif
@@ -33,7 +36,7 @@ main = do
 		describe "read GPS lat long" $ testReadGpsLatLong gpsExifData
 		describe "read GPS lat long -- no data" $ testReadGpsLatLongNoData exifData
 		describe "test formatAsFloatingPoint" testFormatAsFloatingPoint
-		describe "pretty printing" $ testPrettyPrint gpsExifData exifData
+		describe "pretty printing" $ testPrettyPrint gpsExifData exifData gps2ExifData
 		describe "flash fired" $ testFlashFired exifData
 
 testNotAJpeg :: B.ByteString -> Spec
@@ -132,8 +135,8 @@ testFormatAsFloatingPoint = it "properly formats as floating point" $ do
 	assertEqual' "0.75" $ formatAsFloatingPoint 2 $ ExifRational 3 4
 	assertEqual' "0.75, -0.50, 0.25" $ formatAsFloatingPoint 2 $ ExifRationalList [(3,4),(-1,2),(1,4)]
 
-testPrettyPrint :: Map ExifTag ExifValue -> Map ExifTag ExifValue -> Spec
-testPrettyPrint exifData stdExifData = it "pretty prints many tags properly" $ do
+testPrettyPrint :: Map ExifTag ExifValue -> Map ExifTag ExifValue -> Map ExifTag ExifValue -> Spec
+testPrettyPrint exifData stdExifData gps2ExifData = it "pretty prints many tags properly" $ do
 	checkPrettyPrinter orientation "Top-left" exifData
 	checkPrettyPrinter flash "Flash did not fire, auto mode" exifData
 	checkPrettyPrinter exposureTime "1/200 sec." exifData
@@ -156,6 +159,8 @@ testPrettyPrint exifData stdExifData = it "pretty prints many tags properly" $ d
 	checkPrettyPrinter resolutionUnit "Inch" exifData
 	checkPrettyPrinter yCbCrPositioning "Co-sited" exifData
 	checkPrettyPrinter gpsLatitude "50.217917" exifData
+	checkPrettyPrinter gpsAltitude "2681.1111" gps2ExifData
+	checkPrettyPrinter gpsTimeStamp "09:12:32.21" gps2ExifData
 	checkPrettyPrinter userComment "Test Exif comment" exifData
 	checkPrettyPrinter userComment "Test Exif commentčšž" stdExifData
 

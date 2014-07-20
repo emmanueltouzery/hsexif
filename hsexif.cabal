@@ -19,7 +19,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Graphics.HsExif
-  other-modules:       Graphics.Types, Graphics.PrettyPrinters, Graphics.ExifTags
+  other-modules:       Graphics.Types, Graphics.PrettyPrinters, Graphics.ExifTags, Graphics.Helpers
   -- other-extensions:    
   build-depends:       base >=4.6 && <5,
                        binary >=0.7 && <0.8,

@@ -8,9 +8,13 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Time.Calendar
+import Data.Time.LocalTime
+import Data.Binary.Get
 
 import Graphics.Types
 import Graphics.PrettyPrinters
+import Graphics.Helpers
 
 exifSubIfdTag :: String -> Word16 -> (ExifValue -> Text)-> ExifTag
 exifSubIfdTag d = ExifTag ExifSubIFD (Just d)
@@ -114,8 +118,8 @@ gpsLatitude		= exifGpsTag "gpsLatitude" 0x0002 ppGpsLongLat
 gpsLongitudeRef		= exifGpsTag "gpsLongitudeRef" 0x0003 showT
 gpsLongitude		= exifGpsTag "gpsLongitude" 0x0004 ppGpsLongLat
 gpsAltitudeRef		= exifGpsTag "gpsAltitudeRef" 0x0005 ppGpsAltitudeRef
-gpsAltitude		= exifGpsTag "gpsAltitude" 0x0006 showT
-gpsTimeStamp		= exifGpsTag "gpsTimeStamp" 0x0007 showT
+gpsAltitude		= exifGpsTag "gpsAltitude" 0x0006 (T.pack . formatAsFloatingPoint 4)
+gpsTimeStamp		= exifGpsTag "gpsTimeStamp" 0x0007 ppGpsTimeStamp
 gpsSatellites		= exifGpsTag "gpsSatellites" 0x0008 showT
 gpsStatus		= exifGpsTag "gpsStatus" 0x0009 showT
 gpsMeasureMode		= exifGpsTag "gpsMeasureMode" 0x000a showT
@@ -137,7 +141,7 @@ gpsDestDistanceRef	= exifGpsTag "gpsDestDistanceRef" 0x0019 showT
 gpsDestDistance		= exifGpsTag "gpsDestDistance" 0x001a showT
 gpsProcessingMethod	= exifGpsTag "gpsProcessingMethod" 0x001b showT
 gpsAreaInformation	= exifGpsTag "gpsAreaInformation" 0x001c showT
-gpsDateStamp		= exifGpsTag "gpsDateStamp" 0x001d showT
+gpsDateStamp		= exifGpsTag "gpsDateStamp" 0x001d ppGpsDateStamp
 gpsDifferential		= exifGpsTag "gpsDifferential" 0x001e showT
 
 allExifTags :: [ExifTag]
@@ -194,3 +198,35 @@ gpsDecodeToDecimalDegrees _ = Nothing
 ppGpsLongLat :: ExifValue -> Text
 ppGpsLongLat v = maybe "invalid GPS data" fmt $ gpsDecodeToDecimalDegrees v
 	where fmt = T.pack . printf "%.6f"
+
+-- | Extract the GPS date time, if present in the picture.
+getGpsDateTime :: Map ExifTag ExifValue -> Maybe LocalTime
+getGpsDateTime exifData = do
+	gpsDate <- Map.lookup gpsDateStamp exifData >>= parseGpsDate 
+	gpsTime <- Map.lookup gpsTimeStamp exifData >>= parseGpsTime 
+	return $ LocalTime gpsDate gpsTime
+
+parseGpsDate :: ExifValue -> Maybe Day
+parseGpsDate (ExifText dateStr) = runMaybeGet getExifDate $ stringToByteString dateStr
+parseGpsDate _ = Nothing
+
+getExifDate :: Get Day
+getExifDate = do
+	year <- readDigit 4
+	month <- getCharValue ':' >> readDigit 2
+	day <- getCharValue ':' >> readDigit 2
+	return $ fromGregorian year month day
+
+-- | read the GPS time from the 'gpsTimeStamp' field.
+parseGpsTime :: ExifValue -> Maybe TimeOfDay
+parseGpsTime (ExifRationalList [(hr_n, hr_d), (min_n, min_d), (sec_n, sec_d)]) =
+	Just $ TimeOfDay (hr_n `div` hr_d) (min_n `div` min_d) (fromIntegral sec_n / fromIntegral sec_d)
+parseGpsTime _ = Nothing
+
+ppGpsTimeStamp :: ExifValue -> Text
+ppGpsTimeStamp exifV = maybe "invalid" (T.pack . formatTod) $ parseGpsTime exifV
+	where formatTod (TimeOfDay h m s) = printf "%02d" h ++ ":" ++ printf "%02d" m ++ ":" ++ printf "%02.2f" (realToFrac s :: Float)
+
+ppGpsDateStamp :: ExifValue -> Text
+ppGpsDateStamp exifV = maybe "invalid" (T.pack . formatDay . toGregorian) $ parseGpsDate exifV
+	where formatDay (year, month, day) = show year ++ "-" ++ printf "%02d" month ++ "-" ++ printf "%02d" day
