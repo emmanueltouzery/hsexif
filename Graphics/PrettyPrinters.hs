@@ -1,7 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables, OverloadedStrings #-}
 module Graphics.PrettyPrinters where
 
-import Graphics.Types (ExifValue(..))
 import Data.List (foldl')
 import Text.Printf (printf)
 import qualified Data.Map as Map
@@ -13,11 +12,11 @@ import qualified Data.Text as T
 import Data.Text (Text)
 import Codec.Text.IConv (convertFuzzy, EncodingName, Fuzzy(Transliterate))
 
-import Graphics.Types (formatAsFloatingPoint)
+import Graphics.Types (ExifValue(..), formatAsFloatingPoint)
 
 -- ! Pretty print the undefined data
 ppUndef :: ExifValue -> Text
-ppUndef (ExifUndefined str) = (T.pack $ show $ BS.length str) `T.append` " bytes undefined data"
+ppUndef (ExifUndefined str) = T.pack (show $ BS.length str) `T.append` " bytes undefined data"
 ppUndef _ = "undefined data"
 
 ppResolutionUnit :: ExifValue -> Text
