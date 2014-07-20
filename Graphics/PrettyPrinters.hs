@@ -9,6 +9,11 @@ import Data.Char (chr)
 import qualified Data.ByteString as BS
 import Control.Arrow (first)
 
+-- ! Pretty print the undefined data
+ppUndef :: ExifValue -> String
+ppUndef (ExifUndefined str) = (show $ BS.length str) ++ " bytes undefined data"
+ppUndef _ = "undefined data"
+
 ppResolutionUnit :: ExifValue -> String
 ppResolutionUnit = fromNumberMap [(1, "No absolute unit"),
 			(2, "Inch"),
