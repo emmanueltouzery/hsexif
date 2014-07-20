@@ -17,7 +17,7 @@ module Graphics.HsExif (
 	wasFlashFired,
 	formatAsFloatingPoint,
 	getGpsDateTime,
-	parseGpsTime
+	parseGpsTime,
 
 	-- * The ExifValue type
 	ExifValue(..),
