@@ -13,6 +13,8 @@ import qualified Data.Text as T
 import Data.Text (Text)
 import Codec.Text.IConv (convertFuzzy, EncodingName, Fuzzy(Transliterate))
 
+import Graphics.Types (formatAsFloatingPoint)
+
 -- ! Pretty print the undefined data
 ppUndef :: ExifValue -> Text
 ppUndef (ExifUndefined str) = (T.pack $ show $ BS.length str) `T.append` " bytes undefined data"
@@ -25,6 +27,9 @@ ppResolutionUnit = fromNumberMap [(1, "No absolute unit"),
 
 ppYCbCrPositioning :: ExifValue -> Text
 ppYCbCrPositioning = fromNumberMap [(1, "Centered"), (2, "Co-sited")]
+
+ppAperture :: ExifValue -> Text
+ppAperture = T.pack . printf "f/%s" . formatAsFloatingPoint 1
 
 ppExposureProgram :: ExifValue -> Text
 ppExposureProgram = fromNumberMap [(0, "Not defined"),

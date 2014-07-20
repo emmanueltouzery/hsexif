@@ -137,6 +137,7 @@ testPrettyPrint exifData stdExifData = it "pretty prints many tags properly" $ d
 	checkPrettyPrinter orientation "Top-left" exifData
 	checkPrettyPrinter flash "Flash did not fire, auto mode" exifData
 	checkPrettyPrinter exposureTime "1/200 sec." exifData
+	checkPrettyPrinter maxApertureValue "f/2.0" exifData
 	checkPrettyPrinter exposureProgram "Normal program" exifData
 	checkPrettyPrinter exifVersion "Exif version 2.30" exifData
 	checkPrettyPrinter componentConfiguration "YCbCr-" exifData
