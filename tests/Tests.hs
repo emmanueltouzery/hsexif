@@ -5,12 +5,14 @@ import Test.HUnit
 import Graphics.HsExif
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString as BS
+import Data.Text (Text)
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Time.LocalTime
 import Data.Time.Calendar
 import Data.Char (chr)
 import Control.Monad (liftM)
+import Data.List
 
 main :: IO ()
 main = do
@@ -31,7 +33,7 @@ main = do
 		describe "read GPS lat long" $ testReadGpsLatLong gpsExifData
 		describe "read GPS lat long -- no data" $ testReadGpsLatLongNoData exifData
 		describe "test formatAsFloatingPoint" testFormatAsFloatingPoint
-		describe "pretty printing" $ testPrettyPrint gpsExifData
+		describe "pretty printing" $ testPrettyPrint gpsExifData exifData
 		describe "flash fired" $ testFlashFired exifData
 
 testNotAJpeg :: B.ByteString -> Spec
@@ -44,33 +46,30 @@ testNoExif imageContents = it "returns empty list if no EXIF" $
 
 testBasic :: B.ByteString -> Spec
 testBasic imageContents = it "parses a simple JPEG" $ do
-	assertEqual' 
-		(Map.fromList
-		[
+	assertEqualListDebug 
+		(sort [
 			(exposureTime, ExifRational 1 160),
 			(fnumber, ExifRational 0 10),
 			(exposureProgram, ExifNumber 2),
 			(isoSpeedRatings, ExifNumber 1600),
-			(exifVersion, ExifUndefined "023"),
+			(exifVersion, ExifUndefined "0230"),
 			(dateTimeOriginal, ExifText "2013:10:02 20:33:33"),
 			(dateTimeDigitized, ExifText "2013:10:02 20:33:33"),
-			(componentConfiguration, ExifUndefined "\SOH\STX\ETX"),
+			(componentConfiguration, ExifUndefined "\SOH\STX\ETX\NUL"),
 			(compressedBitsPerPixel, ExifRational 2 1),
 			(brightnessValue, ExifRational (-4226) 2560),
 			(exposureBiasValue, ExifRational 0 10),
 			(maxApertureValue, ExifRational 0 10),
 			(meteringMode, ExifNumber 5),
 			(lightSource, ExifNumber 0),
-			(fileSource, ExifUndefined ""),
 			(flash, ExifNumber 24),
 			(focalLength, ExifRational 0 10),
-			(userComment, ExifUndefined "\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL\NUL"),
-			(flashPixVersion, ExifUndefined "010"),
+			(flashPixVersion, ExifUndefined "0100"),
 			(colorSpace, ExifNumber 1),
-			(sceneType, ExifUndefined ""),
+			(sceneType, ExifUndefined "\SOH"),
 			(exifImageWidth, ExifNumber 1),
 			(exifImageHeight, ExifNumber 1),
-			(exifInteroperabilityOffset, ExifNumber 36640),
+			(exifInteroperabilityOffset, ExifNumber 36616),
 			(customRendered, ExifNumber 0),
 			(exposureMode, ExifNumber 0),
 			(whiteBalance, ExifNumber 0),
@@ -88,13 +87,15 @@ testBasic imageContents = it "parses a simple JPEG" $ do
 			(xResolution, ExifRational 350 1),
 			(yResolution, ExifRational 350 1),
 			(resolutionUnit, ExifNumber 2),
+			(userComment, ExifUndefined "UNICODE\NULT\NULe\NULs\NULt\NUL \NULE\NULx\NULi\NULf\NUL \NULc\NULo\NULm\NULm\NULe\NULn\NULt\NUL\r\SOHa\SOH~\SOH"),
 			(dateTime, ExifText "2014:04:10 20:14:20"),
 			(yCbCrPositioning, ExifNumber 2),
+			(fileSource, ExifUndefined "\ETX"),
 			(exifIfdOffset, ExifNumber 358),
-			(printImageMatching, ExifUndefined "PrintIM\NUL0300\NUL\NUL\ETX\NUL\STX\NUL\SOH\NUL\NUL\NUL\ETX\NUL\"\NUL\NUL\NUL\SOH\SOH\NUL\NUL\NUL\NUL\t\DC1\NUL\NUL\DLE'\NUL\NUL\v\SI\NUL\NUL\DLE'\NUL\NUL\151\ENQ\NUL\NUL\DLE'\NUL\NUL\176\b\NUL\NUL\DLE'\NUL\NUL\SOH\FS\NUL\NUL\DLE'\NUL\NUL^\STX\NUL\NUL\DLE'\NUL\NUL\139\NUL\NUL\NUL\DLE'\NUL\NUL\203\ETX\NUL\NUL\DLE'\NUL\NUL\229\ESC\NUL\NUL\DLE'\NUL")
-		]) cleanedParsed
+			(printImageMatching, ExifUndefined "PrintIM\NUL0300\NUL\NUL\ETX\NUL\STX\NUL\SOH\NUL\NUL\NUL\ETX\NUL\"\NUL\NUL\NUL\SOH\SOH\NUL\NUL\NUL\NUL\t\DC1\NUL\NUL\DLE'\NUL\NUL\v\SI\NUL\NUL\DLE'\NUL\NUL\151\ENQ\NUL\NUL\DLE'\NUL\NUL\176\b\NUL\NUL\DLE'\NUL\NUL\SOH\FS\NUL\NUL\DLE'\NUL\NUL^\STX\NUL\NUL\DLE'\NUL\NUL\139\NUL\NUL\NUL\DLE'\NUL\NUL\203\ETX\NUL\NUL\DLE'\NUL\NUL\229\ESC\NUL\NUL\DLE'\NUL\NUL")
+		]) (sort $ Map.toList cleanedParsed)
 	-- the sony maker note is 35k!! Just test its size and that it starts with "SONY DSC".
-	assertEqual' 35698 (BS.length makerNoteV)
+	assertEqual' 35692 (BS.length makerNoteV)
 	assertEqual' "SONY DSC" (take 8 $ fmap (chr . fromIntegral) $ BS.unpack makerNoteV)
 	where
 		-- the makerNote is HUGE. so test it separately.
@@ -131,14 +132,14 @@ testFormatAsFloatingPoint = it "properly formats as floating point" $ do
 	assertEqual' "0.75" $ formatAsFloatingPoint 2 $ ExifRational 3 4
 	assertEqual' "0.75, -0.50, 0.25" $ formatAsFloatingPoint 2 $ ExifRationalList [(3,4),(-1,2),(1,4)]
 
-testPrettyPrint :: Map ExifTag ExifValue -> Spec
-testPrettyPrint exifData = it "pretty prints many tags properly" $ do
+testPrettyPrint :: Map ExifTag ExifValue -> Map ExifTag ExifValue -> Spec
+testPrettyPrint exifData stdExifData = it "pretty prints many tags properly" $ do
 	checkPrettyPrinter orientation "Top-left" exifData
 	checkPrettyPrinter flash "Flash did not fire, auto mode" exifData
 	checkPrettyPrinter exposureTime "1/200 sec." exifData
 	checkPrettyPrinter exposureProgram "Normal program" exifData
 	checkPrettyPrinter exifVersion "Exif version 2.30" exifData
-	checkPrettyPrinter componentConfiguration "YCbCr" exifData
+	checkPrettyPrinter componentConfiguration "YCbCr-" exifData
 	checkPrettyPrinter exposureBiasValue "0.00 EV" exifData
 	checkPrettyPrinter meteringMode "Pattern" exifData
 	checkPrettyPrinter lightSource "Unknown" exifData
@@ -154,8 +155,10 @@ testPrettyPrint exifData = it "pretty prints many tags properly" $ do
 	checkPrettyPrinter resolutionUnit "Inch" exifData
 	checkPrettyPrinter yCbCrPositioning "Co-sited" exifData
 	checkPrettyPrinter gpsLatitude "50.217917" exifData
+	checkPrettyPrinter userComment "Test Exif comment" exifData
+	checkPrettyPrinter userComment "Test Exif commentčšž" stdExifData
 
-checkPrettyPrinter :: ExifTag -> String -> Map ExifTag ExifValue -> Assertion
+checkPrettyPrinter :: ExifTag -> Text -> Map ExifTag ExifValue -> Assertion
 checkPrettyPrinter tag str exifData = assertEqual' (Just str) $ liftM (prettyPrinter tag) $ Map.lookup tag exifData
 
 testFlashFired :: Map ExifTag ExifValue -> Spec
@@ -186,6 +189,16 @@ testFlashFired exifData = it "properly reads whether the flash was fired" $ do
 
 makeExifMapWithFlash :: Int -> Map ExifTag ExifValue
 makeExifMapWithFlash flashV = Map.fromList [(flash, ExifNumber flashV)]
+
+assertEqualListDebug :: (Show a, Eq a) => [a] -> [a] -> Assertion
+assertEqualListDebug = assertEqualListDebug' (0 :: Int)
+	where
+		assertEqualListDebug' idx (x:xs) (y:ys) = do
+			assertEqual ("index " ++ show idx ++ " differs: " ++ show x ++ " /= " ++ show y) x y
+			assertEqualListDebug' (idx+1) xs ys
+		assertEqualListDebug' _ (x:_) [] = assertBool ("List lengths differ, expected " ++ show x) False
+		assertEqualListDebug' _ [] (y:_) = assertBool ("List lengths differ, got " ++ show y) False
+		assertEqualListDebug' _ [] [] = assertBool "" True
 
 assertEqual' :: (Show a, Eq a) => a -> a -> Assertion
 assertEqual' = assertEqual "doesn't match"

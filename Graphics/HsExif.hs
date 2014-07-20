@@ -288,7 +288,7 @@ parseIfEntry byteAlign = do
 		}
 
 getExifTag :: TagLocation -> Word16 -> ExifTag
-getExifTag l v = fromMaybe (ExifTag l Nothing v show) $ find (isSameTag l v) allExifTags
+getExifTag l v = fromMaybe (ExifTag l Nothing v showT) $ find (isSameTag l v) allExifTags
 	where isSameTag l1 v1 (ExifTag l2 _ v2 _) = l1 == l2 && v1 == v2
 
 data ValueHandler = ValueHandler
@@ -362,7 +362,7 @@ undefinedValueHandler = ValueHandler
 		dataTypeId = 7,
 		dataLength = 1,
 		readSingle = \ba -> readMany undefinedValueHandler ba 1,
-		readMany = \_ components -> liftM ExifUndefined (getByteString (components-1))
+		readMany = \_ components -> liftM ExifUndefined (getByteString components)
 	}
 
 signedShortValueHandler = ValueHandler

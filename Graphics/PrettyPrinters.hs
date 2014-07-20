@@ -1,28 +1,32 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, OverloadedStrings #-}
 module Graphics.PrettyPrinters where
 
 import Graphics.Types (ExifValue(..))
 import Data.List (foldl')
 import Text.Printf (printf)
 import qualified Data.Map as Map
-import Data.Char (chr)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BL
 import Control.Arrow (first)
+import Data.Text.Encoding (decodeUtf8)
+import qualified Data.Text as T
+import Data.Text (Text)
+import Codec.Text.IConv (convertFuzzy, EncodingName, Fuzzy(Transliterate))
 
 -- ! Pretty print the undefined data
-ppUndef :: ExifValue -> String
-ppUndef (ExifUndefined str) = (show $ BS.length str) ++ " bytes undefined data"
+ppUndef :: ExifValue -> Text
+ppUndef (ExifUndefined str) = (T.pack $ show $ BS.length str) `T.append` " bytes undefined data"
 ppUndef _ = "undefined data"
 
-ppResolutionUnit :: ExifValue -> String
+ppResolutionUnit :: ExifValue -> Text
 ppResolutionUnit = fromNumberMap [(1, "No absolute unit"),
 			(2, "Inch"),
 			(3, "Centimeter")]
 
-ppYCbCrPositioning :: ExifValue -> String
+ppYCbCrPositioning :: ExifValue -> Text
 ppYCbCrPositioning = fromNumberMap [(1, "Centered"), (2, "Co-sited")]
 
-ppExposureProgram :: ExifValue -> String
+ppExposureProgram :: ExifValue -> Text
 ppExposureProgram = fromNumberMap [(0, "Not defined"),
 			(1, "Manual"),
 			(2, "Normal program"),
@@ -33,7 +37,7 @@ ppExposureProgram = fromNumberMap [(0, "Not defined"),
 			(7, "Portrait mode (for closeup photos with the background out of focus)"),
 			(8, "Landscape mode (for landscape photos with the background in focus)")]
 
-ppMeteringMode :: ExifValue -> String
+ppMeteringMode :: ExifValue -> Text
 ppMeteringMode = fromNumberMap [(0, "Unknown"),
 			(1, "Average"),
 			(2, "Center-weighted average"),
@@ -43,7 +47,7 @@ ppMeteringMode = fromNumberMap [(0, "Unknown"),
 			(6, "Partial"),
 			(255, "other")]
 
-ppLightSource :: ExifValue -> String
+ppLightSource :: ExifValue -> Text
 ppLightSource = fromNumberMap [(0, "Unknown"),
 			(1, "Daylight"),
 			(2, "Fluorescent"),
@@ -66,7 +70,7 @@ ppLightSource = fromNumberMap [(0, "Unknown"),
 			(24, "ISO studio tungsten"),
 			(255, "Other light source")]
 
-ppFlash :: ExifValue -> String
+ppFlash :: ExifValue -> Text
 ppFlash = fromNumberMap [(0, "Flash did not fire"),
 			(1, "Flash fired"),
 			(5, "Strobe return light not detected"),
@@ -90,43 +94,43 @@ ppFlash = fromNumberMap [(0, "Flash did not fire"),
 			(0x5D, "Flash fired, auto mode, return light not detected, red-eye reduction mode"),
 			(0x5F, "Flash fired, auto mode, return light detected, red-eye reduction mode")]
 
-ppColorSpace :: ExifValue -> String
+ppColorSpace :: ExifValue -> Text
 ppColorSpace = fromNumberMap [(1, "sRGB"), (65535, "Uncalibrated")]
 
-ppCustomRendered :: ExifValue -> String
+ppCustomRendered :: ExifValue -> Text
 ppCustomRendered = fromNumberMap [(0, "Normal process"), (1, "Custom process")]
 
-ppExposureMode :: ExifValue -> String
+ppExposureMode :: ExifValue -> Text
 ppExposureMode = fromNumberMap [(0, "Auto exposure"),
 			(1, "Manual exposure"),
 			(2, "Auto bracket")]
 
-ppWhiteBalance :: ExifValue -> String
+ppWhiteBalance :: ExifValue -> Text
 ppWhiteBalance = fromNumberMap [(0, "Auto white balance"),
 			(1, "Manual white balance")]
 
-ppSceneCaptureType :: ExifValue -> String
+ppSceneCaptureType :: ExifValue -> Text
 ppSceneCaptureType = fromNumberMap [(0, "Standard"),
 			(1, "Landscape"),
 			(2, "Portrait"),
 			(3, "Night scene")]
 
-ppGainControl :: ExifValue -> String
+ppGainControl :: ExifValue -> Text
 ppGainControl = fromNumberMap [(0, "Normal"),
 			(1, "Low gain up"),
 			(2, "High gain up"),
 			(3, "Low gain down"),
 			(4, "High gain down")]
 
-ppContrastSharpness :: ExifValue -> String
+ppContrastSharpness :: ExifValue -> Text
 ppContrastSharpness = fromNumberMap [(0, "Normal"), (1, "Soft"), (2, "Hard")]
 
-ppSaturation :: ExifValue -> String
+ppSaturation :: ExifValue -> Text
 ppSaturation = fromNumberMap [(0, "Normal"),
 			(1, "Low saturation"),
 			(2, "High saturation")]
 
-ppSensingMethod :: ExifValue -> String
+ppSensingMethod :: ExifValue -> Text
 ppSensingMethod = fromNumberMap [(1, "Not defined"),
 			(2, "One-chip color area sensor"),
 			(3, "Two-chip color area sensor"),
@@ -135,18 +139,18 @@ ppSensingMethod = fromNumberMap [(1, "Not defined"),
 			(7, "Trilinear sensor"),
 			(8, "Color sequential linear sensor")]
 
-ppSubjectDistanceRange :: ExifValue -> String
+ppSubjectDistanceRange :: ExifValue -> Text
 ppSubjectDistanceRange = fromNumberMap [(0, "Unknown"),
 			(1, "Macro"),
 			(2, "Close view"),
 			(3, "Distance view")]
 
-ppFocalPlaneResolutionUnit :: ExifValue -> String
+ppFocalPlaneResolutionUnit :: ExifValue -> Text
 ppFocalPlaneResolutionUnit = fromNumberMap [(1, "No absolute unit of measurement"),
 			(2, "Inch"),
 			(3, "Centimeter")]
 
-ppOrientation :: ExifValue -> String
+ppOrientation :: ExifValue -> Text
 ppOrientation = fromNumberMap [(1, "Top-left"),
 			(2, "Top-right"),
 			(3, "Bottom-right"),
@@ -156,15 +160,15 @@ ppOrientation = fromNumberMap [(1, "Top-left"),
 			(7, "Right-bottom"),
 			(8, "Left-bottom")]
 
-ppSceneType :: ExifValue -> String
+ppSceneType :: ExifValue -> Text
 ppSceneType = fromNumberMap [(1, "Directly photographed")]
 
-ppGpsAltitudeRef :: ExifValue -> String
+ppGpsAltitudeRef :: ExifValue -> Text
 ppGpsAltitudeRef = fromNumberMap [(0, "Sea level"),
     			(1, "Below sea level")]
 
-ppComponentConfiguration :: ExifValue -> String
-ppComponentConfiguration (ExifUndefined bs) = foldl' addComponent [] numbers
+ppComponentConfiguration :: ExifValue -> Text
+ppComponentConfiguration (ExifUndefined bs) = T.pack $ foldl' addComponent [] numbers
 	where
 		numbers :: [Int] = fmap fromIntegral $ BS.unpack bs
 		addComponent soFar c = soFar ++ formatComponent c
@@ -179,25 +183,36 @@ ppComponentConfiguration (ExifUndefined bs) = foldl' addComponent [] numbers
 			_ -> "?"
 ppComponentConfiguration v@_ = unknown v
 
-ppFlashPixVersion :: ExifValue -> String
+ppFlashPixVersion :: ExifValue -> Text
 ppFlashPixVersion = formatVersion "FlashPix version %.1f"
 
-ppExifVersion :: ExifValue -> String
+ppExifVersion :: ExifValue -> Text
 ppExifVersion = formatVersion "Exif version %.2f"
 
-formatVersion :: String -> ExifValue -> String
-formatVersion fmt (ExifUndefined s) = printf fmt num
+formatVersion :: String -> ExifValue -> Text
+formatVersion fmt (ExifUndefined s) = T.pack $ printf fmt num
 	where
-		num :: Float = read asStr / 10.0
-		asStr = fmap (chr . fromIntegral) $ BS.unpack s
+		num :: Float = read asStr / 100.0
+		asStr = T.unpack $ decodeUtf8 s
 formatVersion _ v@_ = unknown v
 
-fromNumberMap :: [(Int, String)] -> ExifValue -> String
+ppUserComment :: ExifValue -> Text
+ppUserComment (ExifUndefined v) = decodeUtf8 $ BL.toStrict $ convertFuzzy Transliterate encoding "UTF8" rawText
+	where
+		encoding = getIconvEncodingName $ decodeUtf8 $ BS.take 8 v
+		rawText = BL.fromStrict $ BS.drop 8 v
+ppUserComment v@_ = unknown v
+
+getIconvEncodingName :: Text -> EncodingName
+getIconvEncodingName "JIS" = "SJIS"
+getIconvEncodingName x@_ = T.unpack x -- ASCII and UNICODE work out of the box.
+
+fromNumberMap :: [(Int, Text)] -> ExifValue -> Text
 fromNumberMap m = fromMap convertedMap
 	where convertedMap = fmap (first ExifNumber) m
 
-fromMap :: [(ExifValue, String)] -> ExifValue -> String
+fromMap :: [(ExifValue, Text)] -> ExifValue -> Text
 fromMap m v = Map.findWithDefault (unknown v) v $ Map.fromList m
 
-unknown :: Show a => a -> String
-unknown v = "Unknown value: " ++ show v
+unknown :: Show a => a -> Text
+unknown v = T.pack $ "Unknown value: " ++ show v
