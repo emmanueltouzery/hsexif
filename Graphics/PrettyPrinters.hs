@@ -207,6 +207,13 @@ ppUserComment (ExifUndefined v) = decodeUtf8 $ BL.toStrict $ convertFuzzy Transl
 		rawText = BL.fromStrict $ BS.drop 8 v
 ppUserComment v@_ = unknown v
 
+-- | Pretty printer for the FileSource tag
+ppFileSource :: ExifValue -> Text
+ppFileSource (ExifUndefined v)
+    | BS.head v == 3 = "DSC"
+    | otherwise      = "(unknown)"
+ppFileSource v = unknown v
+
 getIconvEncodingName :: Text -> EncodingName
 getIconvEncodingName "JIS" = "SJIS"
 getIconvEncodingName x@_ = T.unpack x -- ASCII and UNICODE work out of the box.
