@@ -11,6 +11,7 @@ import qualified Data.Text as T
 import Data.Time.Calendar
 import Data.Time.LocalTime
 import Data.Binary.Get
+import Data.Maybe (fromMaybe)
 
 import Graphics.Types
 import Graphics.PrettyPrinters
@@ -113,9 +114,9 @@ gpsTagOffset		= exifIfd0Tag "gpsTagOffset" 0x8825 showT
 printImageMatching	= exifIfd0Tag "printImageMatching" 0xc4a5 ppUndef
 
 gpsVersionID		= exifGpsTag "gpsVersionID" 0x0000 showT
-gpsLatitudeRef		= exifGpsTag "gpsLatitudeRef" 0x0001 showT
+gpsLatitudeRef		= exifGpsTag "gpsLatitudeRef" 0x0001 ppGpsLatitudeRef
 gpsLatitude		= exifGpsTag "gpsLatitude" 0x0002 ppGpsLongLat
-gpsLongitudeRef		= exifGpsTag "gpsLongitudeRef" 0x0003 showT
+gpsLongitudeRef		= exifGpsTag "gpsLongitudeRef" 0x0003 ppGpsLongitudeRef
 gpsLongitude		= exifGpsTag "gpsLongitude" 0x0004 ppGpsLongLat
 gpsAltitudeRef		= exifGpsTag "gpsAltitudeRef" 0x0005 ppGpsAltitudeRef
 gpsAltitude		= exifGpsTag "gpsAltitude" 0x0006 (T.pack . formatAsFloatingPoint 4)
@@ -187,17 +188,26 @@ getGpsLatitudeLongitude exifData = do
 		_ -> longDec
 	return (signedLatDec, signedLongDec)
 
-gpsDecodeToDecimalDegrees :: ExifValue -> Maybe Double
-gpsDecodeToDecimalDegrees (ExifRationalList intPairs) = case fmap intPairToFloating intPairs of
-			(degrees:minutes:seconds:[]) -> Just $ degrees + minutes / 60 + seconds / 3600
+gpsLongLatToCoords :: ExifValue -> Maybe (Double, Double, Double)
+gpsLongLatToCoords (ExifRationalList intPairs) = case fmap intPairToFloating intPairs of
+			(degrees:minutes:seconds:[]) -> Just (degrees, minutes, seconds)
 			_ -> Nothing
 	where
 		intPairToFloating (n, d) = fromIntegral n / fromIntegral d
-gpsDecodeToDecimalDegrees _ = Nothing
+gpsLongLatToCoords _ = Nothing
+
+gpsDecodeToDecimalDegrees :: ExifValue -> Maybe Double
+gpsDecodeToDecimalDegrees v = do
+		(degrees, minutes, seconds) <- gpsLongLatToCoords v
+		return $ degrees + minutes / 60 + seconds / 3600
 
 ppGpsLongLat :: ExifValue -> Text
-ppGpsLongLat v = maybe "invalid GPS data" fmt $ gpsDecodeToDecimalDegrees v
-	where fmt = T.pack . printf "%.6f"
+ppGpsLongLat x = fromMaybe "Invalid GPS data" $ _ppGpsLongLat x
+
+_ppGpsLongLat :: ExifValue -> Maybe Text
+_ppGpsLongLat v = do
+		(degrees, minutes, seconds) <- gpsLongLatToCoords v
+		return $ T.pack $ printf "%.0f° %.0f' %.2f\"" degrees minutes seconds
 
 -- | Extract the GPS date time, if present in the picture.
 getGpsDateTime :: Map ExifTag ExifValue -> Maybe LocalTime
@@ -230,3 +240,13 @@ ppGpsTimeStamp exifV = maybe "invalid" (T.pack . formatTod) $ parseGpsTime exifV
 ppGpsDateStamp :: ExifValue -> Text
 ppGpsDateStamp exifV = maybe "invalid" (T.pack . formatDay . toGregorian) $ parseGpsDate exifV
 	where formatDay (year, month, day) = show year ++ "-" ++ printf "%02d" month ++ "-" ++ printf "%02d" day
+
+ppGpsLatitudeRef :: ExifValue -> Text
+ppGpsLatitudeRef (ExifText "N") = "North"
+ppGpsLatitudeRef (ExifText "S") = "South"
+ppGpsLatitudeRef v@_ = T.pack $ "Invalid latitude: " ++ show v
+
+ppGpsLongitudeRef :: ExifValue -> Text
+ppGpsLongitudeRef (ExifText "E") = "East"
+ppGpsLongitudeRef (ExifText "W") = "West"
+ppGpsLongitudeRef v@_ = T.pack $ "Invalid longitude: " ++ show v

@@ -158,7 +158,8 @@ testPrettyPrint exifData stdExifData gps2ExifData = it "pretty prints many tags 
 	checkPrettyPrinter saturation "Normal" exifData
 	checkPrettyPrinter resolutionUnit "Inch" exifData
 	checkPrettyPrinter yCbCrPositioning "Co-sited" exifData
-	checkPrettyPrinter gpsLatitude "50.217917" exifData
+	checkPrettyPrinter gpsLatitude "50° 13' 4.50\"" exifData
+	checkPrettyPrinter gpsLatitudeRef "North" exifData
 	checkPrettyPrinter gpsAltitude "2681.1111" gps2ExifData
 	checkPrettyPrinter gpsTimeStamp "09:12:32.21" gps2ExifData
 	checkPrettyPrinter userComment "Test Exif comment" exifData

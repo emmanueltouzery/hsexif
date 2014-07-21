@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                hsexif
-version:             0.6.0.0
+version:             0.6.0.1
 synopsis:            EXIF handling library in pure Haskell
 description:         The hsexif library provides functions for working with EXIF data
                      contained in JPEG files. Currently it only supports reading the data.
