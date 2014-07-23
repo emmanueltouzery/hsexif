@@ -146,6 +146,7 @@ import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteString.Lazy as B
 import Control.Monad (liftM, unless)
+import Control.Applicative ( (<$>) )
 import qualified Data.ByteString.Char8 as Char8
 import Data.Word
 import Data.Char (ord)
@@ -169,7 +170,7 @@ import Graphics.Helpers
 
 -- | Read EXIF data from the file you give. It's a key-value map.
 parseFileExif :: FilePath -> IO (Either String (Map ExifTag ExifValue))
-parseFileExif filename = liftM parseExif $ B.readFile filename
+parseFileExif filename = parseExif <$> B.readFile filename
 
 -- | Read EXIF data from a lazy bytestring.
 parseExif :: B.ByteString -> Either String (Map ExifTag ExifValue)
@@ -187,7 +188,7 @@ getExif = do
 findAndParseExifBlock :: Get (Map ExifTag ExifValue)
 findAndParseExifBlock = do
 	markerNumber <- getWord16be
-	dataSize <- liftM (fromIntegral . toInteger) getWord16be
+	dataSize <- fromIntegral . toInteger <$> getWord16be
 	case markerNumber of
 		0xffe1 -> parseExifBlock
 		-- ffda is Start Of Stream => image
@@ -212,10 +213,10 @@ putWord32 Motorola = putWord32be
 parseExifBlock :: Get (Map ExifTag ExifValue)
 parseExifBlock = do
 	header <- getByteString 4
-	nul <- liftM toInteger getWord16be
+	nul <- toInteger <$> getWord16be
 	unless (header == Char8.pack "Exif" && nul == 0)
 		$ fail "invalid EXIF header"
-	tiffHeaderStart <- liftM fromIntegral bytesRead
+	tiffHeaderStart <- fromIntegral <$> bytesRead
 	byteAlign <- parseTiffHeader
 	(exifSubIfdOffsetW, mGpsOffsetW, ifdEntries) <- parseIfd byteAlign tiffHeaderStart
 	let exifSubIfdOffset = fromIntegral $ toInteger exifSubIfdOffsetW
@@ -223,7 +224,7 @@ parseExifBlock = do
 		Nothing -> return []
 		Just gpsOffsetW -> lookAhead $ parseGps gpsOffsetW byteAlign tiffHeaderStart
 	-- skip to the exif offset
-	bytesReadNow <- liftM fromIntegral bytesRead
+	bytesReadNow <- fromIntegral <$> bytesRead
 	skip $ (exifSubIfdOffset + tiffHeaderStart) - bytesReadNow
 	exifSubEntries <- parseSubIfd byteAlign tiffHeaderStart ExifSubIFD
 	return $ Map.fromList $ ifdEntries ++ exifSubEntries ++ gpsData
@@ -231,7 +232,7 @@ parseExifBlock = do
 parseGps :: Word32 -> ByteAlign -> Int -> Get [(ExifTag, ExifValue)]
 parseGps gpsOffsetW byteAlign tiffHeaderStart = do
 	let gpsOffset = fromIntegral $ toInteger gpsOffsetW
-	bytesReadNow <- liftM fromIntegral bytesRead
+	bytesReadNow <- fromIntegral <$> bytesRead
 	skip $ (gpsOffset + tiffHeaderStart) - bytesReadNow
 	parseSubIfd byteAlign tiffHeaderStart GpsSubIFD
 
@@ -242,16 +243,16 @@ parseTiffHeader = do
 		"II" -> Intel
 		"MM" -> Motorola
 		_ -> error "Unknown byte alignment"
-	alignControl <- liftM toInteger (getWord16 byteAlign)
+	alignControl <- toInteger <$> (getWord16 byteAlign)
 	unless (alignControl == 0x2a)
 		$ fail "exif byte alignment mismatch"
-	ifdOffset <- liftM (fromIntegral . toInteger) (getWord32 byteAlign)
+	ifdOffset <- fromIntegral . toInteger <$> getWord32 byteAlign
 	skip $ ifdOffset - 8
 	return byteAlign
 
 parseIfd :: ByteAlign -> Int -> Get (Word32, Maybe Word32, [(ExifTag, ExifValue)])
 parseIfd byteAlign tiffHeaderStart = do
-	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
+	dirEntriesCount <- toInteger <$> getWord16 byteAlign
 	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign) [1..dirEntriesCount]
 	let exifOffsetEntry = fromMaybe (error "Can't find the exif ifd offset")
 		(find (\ e -> entryTag e == tagKey exifIfdOffset) ifdEntries)
@@ -264,7 +265,7 @@ parseIfd byteAlign tiffHeaderStart = do
 
 parseSubIfd :: ByteAlign -> Int -> TagLocation -> Get [(ExifTag, ExifValue)]
 parseSubIfd byteAlign tiffHeaderStart location = do
-	dirEntriesCount <- liftM toInteger (getWord16 byteAlign)
+	dirEntriesCount <- toInteger <$> getWord16 byteAlign
 	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign) [1..dirEntriesCount]
 	mapM (decodeEntry byteAlign tiffHeaderStart location) ifdEntries
 
@@ -303,14 +304,14 @@ data ValueHandler = ValueHandler
 	}
 
 readNumberList :: Integral a => (ByteAlign -> Get a) -> ByteAlign -> Int -> Get ExifValue
-readNumberList decoder byteAlign components = liftM (ExifNumberList . fmap fromIntegral)
-			$ count components (decoder byteAlign)
+readNumberList decoder byteAlign components = ExifNumberList . fmap fromIntegral <$>
+			count components (decoder byteAlign)
 
 unsignedByteValueHandler = ValueHandler
 	{
 		dataTypeId = 1,
 		dataLength = 1,
-		readSingle = \_ -> liftM (ExifNumber . fromIntegral) getWord8,
+		readSingle = \_ -> ExifNumber . fromIntegral <$> getWord8,
 		readMany = readNumberList $ const getWord8
 	}
 
@@ -319,7 +320,7 @@ asciiStringValueHandler = ValueHandler
 		dataTypeId = 2,
 		dataLength = 1,
 		readSingle = \ba -> readMany asciiStringValueHandler ba 1,
-		readMany = \_ components -> liftM (ExifText . Char8.unpack) (getByteString (components-1))
+		readMany = \_ components -> ExifText . Char8.unpack <$> getByteString (components-1)
 	}
 
 unsignedShortValueHandler = ValueHandler
@@ -340,8 +341,8 @@ unsignedLongValueHandler = ValueHandler
 
 readRationalContents :: (Int -> Int -> a) -> ByteAlign -> Get a
 readRationalContents c byteAlign = do
-	numerator <- liftM fromIntegral $ getWord32 byteAlign
-	denominator <- liftM fromIntegral $ getWord32 byteAlign
+	numerator <- fromIntegral <$> getWord32 byteAlign
+	denominator <- fromIntegral <$> getWord32 byteAlign
 	return $ c numerator denominator
 
 unsignedRationalValueHandler = ValueHandler
@@ -349,14 +350,14 @@ unsignedRationalValueHandler = ValueHandler
 		dataTypeId = 5,
 		dataLength = 8,
 		readSingle = readRationalContents ExifRational,
-		readMany = \byteAlign components -> liftM ExifRationalList $ count components (readRationalContents (,) byteAlign)
+		readMany = \byteAlign components -> ExifRationalList <$> count components (readRationalContents (,) byteAlign)
 	}
 
 signedByteValueHandler = ValueHandler
 	{
 		dataTypeId = 6,
 		dataLength = 1,
-		readSingle = \_ -> liftM (ExifNumber . signedInt8ToInt) getWord8,
+		readSingle = \_ -> ExifNumber . signedInt8ToInt <$> getWord8,
 		readMany = readNumberList (liftM signedInt8ToInt . const getWord8)
 	}
 
@@ -365,7 +366,7 @@ undefinedValueHandler = ValueHandler
 		dataTypeId = 7,
 		dataLength = 1,
 		readSingle = \ba -> readMany undefinedValueHandler ba 1,
-		readMany = \_ components -> liftM ExifUndefined (getByteString components)
+		readMany = \_ components -> ExifUndefined <$> getByteString components
 	}
 
 signedShortValueHandler = ValueHandler
@@ -386,8 +387,8 @@ signedLongValueHandler = ValueHandler
 
 readSignedRationalContents :: (Int -> Int -> a) -> ByteAlign -> Get a
 readSignedRationalContents c byteAlign = do
-	numerator <- liftM signedInt32ToInt $ getWord32 byteAlign
-	denominator <- liftM signedInt32ToInt $ getWord32 byteAlign
+	numerator <- signedInt32ToInt <$> getWord32 byteAlign
+	denominator <- signedInt32ToInt <$> getWord32 byteAlign
 	return $ c numerator denominator
 
 signedRationalValueHandler = ValueHandler
@@ -395,7 +396,7 @@ signedRationalValueHandler = ValueHandler
 		dataTypeId = 10,
 		dataLength = 8,
 		readSingle = readSignedRationalContents ExifRational,
-		readMany = \byteAlign components -> liftM ExifRationalList $ count components (readSignedRationalContents (,) byteAlign)
+		readMany = \byteAlign components -> ExifRationalList <$> count components (readSignedRationalContents (,) byteAlign)
 	}
 
 valueHandlers :: [ValueHandler]
@@ -447,7 +448,7 @@ parseInline byteAlign handler entry bytestring =
 parseOffset :: ByteAlign -> Int -> ValueHandler -> IfEntry -> Get ExifValue
 parseOffset byteAlign tiffHeaderStart handler entry = do
 	let contentsInt = fromIntegral $ toInteger $ entryContents entry
-	curPos <- liftM fromIntegral bytesRead
+	curPos <- fromIntegral <$> bytesRead
 	skip $ contentsInt + tiffHeaderStart - curPos
 	bytestring <- getLazyByteString (fromIntegral $ entryNoComponents entry * dataLength handler)
 	return $ parseInline byteAlign handler entry bytestring

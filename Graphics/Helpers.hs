@@ -2,7 +2,8 @@ module Graphics.Helpers where
 
 import Data.Binary.Get
 import qualified Data.ByteString.Lazy as B
-import Control.Monad (liftM, replicateM)
+import Control.Monad (replicateM)
+import Control.Applicative ( (<$>) )
 import Data.Char (chr, isDigit, ord)
 
 -- i had this as runGetM and reusing in parseExif,
@@ -15,7 +16,7 @@ runMaybeGet get bs = case runGetOrFail get bs of
 
 getCharWhere :: (Char->Bool) -> Get Char
 getCharWhere wher = do
-	char <- liftM (chr . fromIntegral) getWord8
+	char <- chr . fromIntegral <$> getWord8
 	if wher char
 		then return char
 		else fail "no parse"
@@ -27,7 +28,7 @@ getCharValue :: Char -> Get Char
 getCharValue char = getCharWhere (==char)
 
 readDigit :: Read a => Int -> Get a
-readDigit x = liftM read $ count x getDigit
+readDigit x = read <$> count x getDigit
 
 count :: Int -> Get a -> Get [a]
 count n p | n <= 0 = return []

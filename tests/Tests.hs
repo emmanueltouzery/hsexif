@@ -10,7 +10,7 @@ import Data.Map (Map)
 import Data.Time.LocalTime
 import Data.Time.Calendar
 import Data.Char (chr)
-import Control.Monad (liftM)
+import Control.Applicative ( (<$>) )
 import Data.List
 
 import Graphics.HsExif
@@ -166,7 +166,7 @@ testPrettyPrint exifData stdExifData gps2ExifData = it "pretty prints many tags 
 	checkPrettyPrinter userComment "Test Exif commentčšž" stdExifData
 
 checkPrettyPrinter :: ExifTag -> Text -> Map ExifTag ExifValue -> Assertion
-checkPrettyPrinter tag str exifData = assertEqual' (Just str) $ liftM (prettyPrinter tag) $ Map.lookup tag exifData
+checkPrettyPrinter tag str exifData = assertEqual' (Just str) $ prettyPrinter tag <$> Map.lookup tag exifData
 
 testFlashFired :: Map ExifTag ExifValue -> Spec
 testFlashFired exifData = it "properly reads whether the flash was fired" $ do
