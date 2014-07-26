@@ -36,8 +36,7 @@ readDigit :: Read a => Int -> Get a
 readDigit x = read <$> count x getDigit
 
 count :: Int -> Get a -> Get [a]
-count n p | n <= 0 = return []
-        | otherwise = replicateM n p
+count = replicateM
 
 stringToByteString :: String -> B.ByteString
-stringToByteString str = B.pack $ map (fromIntegral . ord) str
+stringToByteString = B.pack . map (fromIntegral . ord)
