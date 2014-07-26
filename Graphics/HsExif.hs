@@ -174,9 +174,7 @@ parseFileExif filename = parseExif <$> B.readFile filename
 
 -- | Read EXIF data from a lazy bytestring.
 parseExif :: B.ByteString -> Either String (Map ExifTag ExifValue)
-parseExif contents = case runGetOrFail getExif contents of
-		Left (_,_,errorMsg) -> Left errorMsg
-		Right (_,_,result) -> Right result
+parseExif contents = runEitherGet getExif contents
 
 getExif :: Get (Map ExifTag ExifValue)
 getExif = do

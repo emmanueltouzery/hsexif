@@ -6,13 +6,18 @@ import Control.Monad (replicateM)
 import Control.Applicative ( (<$>) )
 import Data.Char (chr, isDigit, ord)
 
--- i had this as runGetM and reusing in parseExif,
--- sadly fail is not implemented for Either.
--- will do for now.
+-- | Suppress the 'Left' value of an 'Either'
+-- From the 'errors' package.
+hush :: Either a b -> Maybe b
+hush = either (const Nothing) Just
+
+runEitherGet :: Get a -> B.ByteString -> Either String a
+runEitherGet get bs = case runGetOrFail get bs of
+	Left (_,_,errorMsg) -> Left errorMsg
+	Right (_,_,x) -> Right x
+
 runMaybeGet :: Get a -> B.ByteString -> Maybe a
-runMaybeGet get bs = case runGetOrFail get bs of
-	Left _ -> Nothing
-	Right (_,_,x) -> Just x
+runMaybeGet get = hush . runEitherGet get
 
 getCharWhere :: (Char->Bool) -> Get Char
 getCharWhere wher = do
