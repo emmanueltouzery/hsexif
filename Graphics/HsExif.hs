@@ -174,7 +174,7 @@ parseFileExif filename = parseExif <$> B.readFile filename
 
 -- | Read EXIF data from a lazy bytestring.
 parseExif :: B.ByteString -> Either String (Map ExifTag ExifValue)
-parseExif contents = runEitherGet getExif contents
+parseExif = runEitherGet getExif
 
 getExif :: Get (Map ExifTag ExifValue)
 getExif = do
@@ -241,7 +241,7 @@ parseTiffHeader = do
 		"II" -> Intel
 		"MM" -> Motorola
 		_ -> error "Unknown byte alignment"
-	alignControl <- toInteger <$> (getWord16 byteAlign)
+	alignControl <- toInteger <$> getWord16 byteAlign
 	unless (alignControl == 0x2a)
 		$ fail "exif byte alignment mismatch"
 	ifdOffset <- fromIntegral . toInteger <$> getWord32 byteAlign
