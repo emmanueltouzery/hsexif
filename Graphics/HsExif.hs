@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 -- | Ability to work with the EXIF data contained in JPEG files.
 module Graphics.HsExif (
@@ -516,8 +517,7 @@ getOrientation exifData = do
 -- the information.
 wasFlashFired :: Map ExifTag ExifValue -> Maybe Bool
 wasFlashFired exifData = do
-	flashVal <- Map.lookup flash exifData
-	case flashVal of
+	Map.lookup flash exifData >>= \case
 		ExifNumber n -> Just $ n .&. 1 /= 0
 		_ -> Nothing
 
