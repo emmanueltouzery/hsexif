@@ -217,23 +217,18 @@ parseExifBlock = do
 		$ fail "invalid EXIF header"
 	tiffHeaderStart <- fromIntegral <$> bytesRead
 	byteAlign <- parseTiffHeader
-	(exifSubIfdOffsetW, mGpsOffsetW, ifdEntries) <- parseIfd byteAlign tiffHeaderStart
-	let exifSubIfdOffset = fromIntegral $ toInteger exifSubIfdOffsetW
-	gpsData <- case mGpsOffsetW of
-		Nothing -> return []
-		Just gpsOffsetW -> lookAhead $ parseGps gpsOffsetW byteAlign tiffHeaderStart
-	-- skip to the exif offset
-	bytesReadNow <- fromIntegral <$> bytesRead
-	skip $ (exifSubIfdOffset + tiffHeaderStart) - bytesReadNow
-	exifSubEntries <- parseSubIfd byteAlign tiffHeaderStart ExifSubIFD
+	let subIfdParse = parseSubIFD byteAlign tiffHeaderStart
+	(mExifSubIfdOffsetW, mGpsOffsetW, ifdEntries) <- parseIfd byteAlign tiffHeaderStart
+	gpsData <- maybe (return []) (lookAhead . subIfdParse GpsSubIFD) mGpsOffsetW
+	exifSubEntries <- maybe (return []) (subIfdParse ExifSubIFD) mExifSubIfdOffsetW
 	return $ Map.fromList $ ifdEntries ++ exifSubEntries ++ gpsData
 
-parseGps :: Word32 -> ByteAlign -> Int -> Get [(ExifTag, ExifValue)]
-parseGps gpsOffsetW byteAlign tiffHeaderStart = do
-	let gpsOffset = fromIntegral $ toInteger gpsOffsetW
+parseSubIFD :: ByteAlign -> Int -> TagLocation -> Word32 -> Get [(ExifTag, ExifValue)]
+parseSubIFD byteAlign tiffHeaderStart ifdType offsetW = do
+	let offset = fromIntegral $ toInteger offsetW
 	bytesReadNow <- fromIntegral <$> bytesRead
-	skip $ (gpsOffset + tiffHeaderStart) - bytesReadNow
-	parseSubIfd byteAlign tiffHeaderStart GpsSubIFD
+	skip $ (offset + tiffHeaderStart) - bytesReadNow
+	parseSubIfd byteAlign tiffHeaderStart ifdType
 
 parseTiffHeader :: Get ByteAlign
 parseTiffHeader = do
@@ -241,7 +236,7 @@ parseTiffHeader = do
 	let byteAlign = case Char8.unpack byteAlignV of
 		"II" -> Intel
 		"MM" -> Motorola
-		_ -> error "Unknown byte alignment"
+		_ -> error "Unknown byte alignment" -- TODO error is not ok!!
 	alignControl <- toInteger <$> getWord16 byteAlign
 	unless (alignControl == 0x2a)
 		$ fail "exif byte alignment mismatch"
@@ -249,18 +244,17 @@ parseTiffHeader = do
 	skip $ ifdOffset - 8
 	return byteAlign
 
-parseIfd :: ByteAlign -> Int -> Get (Word32, Maybe Word32, [(ExifTag, ExifValue)])
+parseIfd :: ByteAlign -> Int -> Get (Maybe Word32, Maybe Word32, [(ExifTag, ExifValue)])
 parseIfd byteAlign tiffHeaderStart = do
 	dirEntriesCount <- toInteger <$> getWord16 byteAlign
 	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign) [1..dirEntriesCount]
-	let exifOffsetEntry = fromMaybe (error "Can't find the exif ifd offset")
-		(find (\ e -> entryTag e == tagKey exifIfdOffset) ifdEntries)
-	let exifOffset = entryContents exifOffsetEntry
-
-	let gpsOffsetEntry = find (\ e -> entryTag e == tagKey gpsTagOffset) ifdEntries
-	let gpsOffset = fmap entryContents gpsOffsetEntry
+	let exifOffset = entryContentsByTag exifIfdOffset ifdEntries
+	let gpsOffset = entryContentsByTag gpsTagOffset ifdEntries
 	entries <- mapM (decodeEntry byteAlign tiffHeaderStart IFD0) ifdEntries
 	return (exifOffset, gpsOffset, entries)
+
+entryContentsByTag :: ExifTag -> [IfEntry] -> Maybe Word32
+entryContentsByTag tag = fmap entryContents . find (\e -> entryTag e == tagKey tag)
 
 parseSubIfd :: ByteAlign -> Int -> TagLocation -> Get [(ExifTag, ExifValue)]
 parseSubIfd byteAlign tiffHeaderStart location = do

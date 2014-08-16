@@ -22,6 +22,7 @@ main = do
 	png <- B.readFile "tests/test.png"
 	gps <- B.readFile "tests/gps.jpg"
 	gps2 <- B.readFile "tests/gps2.jpg"
+	partial <- B.readFile "tests/partial_exif.jpg"
 	let parseExifCorrect = (\(Right x) -> x) . parseExif
 	let exifData = parseExifCorrect imageContents
 	let gpsExifData = parseExifCorrect gps
@@ -38,6 +39,7 @@ main = do
 		describe "test formatAsFloatingPoint" testFormatAsFloatingPoint
 		describe "pretty printing" $ testPrettyPrint gpsExifData exifData gps2ExifData
 		describe "flash fired" $ testFlashFired exifData
+		describe "partial exif data" $ testPartialExif partial
 
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
@@ -196,6 +198,12 @@ testFlashFired exifData = it "properly reads whether the flash was fired" $ do
 
 makeExifMapWithFlash :: Int -> Map ExifTag ExifValue
 makeExifMapWithFlash flashV = Map.fromList [(flash, ExifNumber flashV)]
+
+testPartialExif :: B.ByteString -> Spec
+testPartialExif imageContents = it "parses a partial exif JPEG" $ do
+	assertEqualListDebug [] (Map.toList parsed)
+	where
+		parsed = (\(Right x) -> x) $ parseExif imageContents
 
 assertEqualListDebug :: (Show a, Eq a) => [a] -> [a] -> Assertion
 assertEqualListDebug = assertEqualListDebug' (0 :: Int)
