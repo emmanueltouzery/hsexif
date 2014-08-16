@@ -232,11 +232,11 @@ parseSubIFD byteAlign tiffHeaderStart ifdType offsetW = do
 
 parseTiffHeader :: Get ByteAlign
 parseTiffHeader = do
-	byteAlignV <- getByteString 2
-	let byteAlign = case Char8.unpack byteAlignV of
-		"II" -> Intel
-		"MM" -> Motorola
-		_ -> error "Unknown byte alignment" -- TODO error is not ok!!
+	byteAlignV <- Char8.unpack <$> getByteString 2
+	byteAlign <- case byteAlignV of
+		"II" -> return Intel
+		"MM" -> return Motorola
+		_ -> fail $ "Unknown byte alignment: " ++ byteAlignV
 	alignControl <- toInteger <$> getWord16 byteAlign
 	unless (alignControl == 0x2a)
 		$ fail "exif byte alignment mismatch"
