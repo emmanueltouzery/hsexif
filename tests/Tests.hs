@@ -13,9 +13,9 @@ import Data.Char (chr)
 import Control.Monad (join)
 import Control.Applicative ( (<$>) )
 import Data.List
-import Control.Error
 
 import Graphics.HsExif
+import Graphics.Helpers
 
 main :: IO ()
 main = do
