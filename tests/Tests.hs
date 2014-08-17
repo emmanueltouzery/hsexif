@@ -10,8 +10,10 @@ import Data.Map (Map)
 import Data.Time.LocalTime
 import Data.Time.Calendar
 import Data.Char (chr)
+import Control.Monad (join)
 import Control.Applicative ( (<$>) )
 import Data.List
+import Control.Error
 
 import Graphics.HsExif
 
@@ -23,10 +25,10 @@ main = do
 	gps <- B.readFile "tests/gps.jpg"
 	gps2 <- B.readFile "tests/gps2.jpg"
 	partial <- B.readFile "tests/partial_exif.jpg"
-	let parseExifCorrect = (\(Right x) -> x) . parseExif
-	let exifData = parseExifCorrect imageContents
-	let gpsExifData = parseExifCorrect gps
-	let gps2ExifData = parseExifCorrect gps2
+	let parseExifM = hush . parseExif
+	let exifData = parseExifM imageContents
+	let gpsExifData = parseExifM gps
+	let gps2ExifData = parseExifM gps2
 	hspec $ do
 		describe "not a JPG" $ testNotAJpeg png
 		describe "no EXIF" $ testNoExif noExif
@@ -108,36 +110,38 @@ testBasic imageContents = it "parses a simple JPEG" $ do
 		cleanedParsed = Map.fromList $ filter (\(a,_) -> (a/=makerNote)) $ Map.toList parsed
 		makerNoteV = (\(Just (ExifUndefined x)) -> x) $ Map.lookup makerNote parsed
 
-testDate :: Map ExifTag ExifValue -> Spec
+testDate :: Maybe (Map ExifTag ExifValue) -> Spec
 testDate exifData = it "extracts the date correctly" $
 	assertEqual' (Just $ LocalTime (fromGregorian 2013 10 2) (TimeOfDay 20 33 33))
-		(getDateTimeOriginal exifData)
+		(exifData >>= getDateTimeOriginal)
 
-testOrientation :: Map ExifTag ExifValue -> Spec
+testOrientation :: Maybe (Map ExifTag ExifValue) -> Spec
 testOrientation exifData = it "reads exif orientation" $
-	assertEqual' (Just Normal) $ getOrientation exifData
+	assertEqual' (Just Normal) $ exifData >>= getOrientation
 
 testReadExifDateTime :: Spec
 testReadExifDateTime = it "reads exif date time" $ do
 	assertEqual' (Just $ LocalTime (fromGregorian 2013 10 2) (TimeOfDay 20 33 33)) (readExifDateTime "2013:10:02 20:33:33")
 	assertEqual' Nothing (readExifDateTime "2013:10:02 20:33:3")
 
-testReadGpsLatLong :: Map ExifTag ExifValue -> Spec
+testReadGpsLatLong :: Maybe (Map ExifTag ExifValue) -> Spec
 testReadGpsLatLong exifData = it "reads gps latitude longitude" $ do
-	let (Just (lat,long)) = getGpsLatitudeLongitude exifData
+	let (Just (lat,long)) = exifData >>= getGpsLatitudeLongitude
 	assertBool' $ 50.2179 < lat && 50.2180 > lat
 	assertBool' $ -5.031 > long && -5.032 < long 
 
-testReadGpsLatLongNoData :: Map ExifTag ExifValue -> Spec
+testReadGpsLatLongNoData :: Maybe (Map ExifTag ExifValue) -> Spec
 testReadGpsLatLongNoData exifData = it "reads gps latitude longitude" $
-	assertEqual' Nothing $ getGpsLatitudeLongitude exifData
+	assertEqual' Nothing $ join $ getGpsLatitudeLongitude <$> exifData
 
 testFormatAsFloatingPoint :: Spec
 testFormatAsFloatingPoint = it "properly formats as floating point" $ do
 	assertEqual' "0.75" $ formatAsFloatingPoint 2 $ ExifRational 3 4
 	assertEqual' "0.75, -0.50, 0.25" $ formatAsFloatingPoint 2 $ ExifRationalList [(3,4),(-1,2),(1,4)]
 
-testPrettyPrint :: Map ExifTag ExifValue -> Map ExifTag ExifValue -> Map ExifTag ExifValue -> Spec
+testPrettyPrint :: Maybe (Map ExifTag ExifValue)
+	-> Maybe (Map ExifTag ExifValue)
+	-> Maybe (Map ExifTag ExifValue) -> Spec
 testPrettyPrint exifData stdExifData gps2ExifData = it "pretty prints many tags properly" $ do
 	checkPrettyPrinter orientation "Top-left" exifData
 	checkPrettyPrinter flash "Flash did not fire, auto mode" exifData
@@ -167,43 +171,26 @@ testPrettyPrint exifData stdExifData gps2ExifData = it "pretty prints many tags 
 	checkPrettyPrinter userComment "Test Exif comment" exifData
 	checkPrettyPrinter userComment "Test Exif commentčšž" stdExifData
 
-checkPrettyPrinter :: ExifTag -> Text -> Map ExifTag ExifValue -> Assertion
-checkPrettyPrinter tag str exifData = assertEqual' (Just str) $ prettyPrinter tag <$> Map.lookup tag exifData
+checkPrettyPrinter :: ExifTag -> Text -> Maybe (Map ExifTag ExifValue) -> Assertion
+checkPrettyPrinter tag str exifData = assertEqual' (Just str) $ prettyPrinter tag <$> (exifData >>= Map.lookup tag)
 
-testFlashFired :: Map ExifTag ExifValue -> Spec
+testFlashFired :: Maybe (Map ExifTag ExifValue) -> Spec
 testFlashFired exifData = it "properly reads whether the flash was fired" $ do
-	assertEqual' (Just False) $ wasFlashFired exifData
+	assertEqual' (Just False) $ exifData >>= wasFlashFired
 	assertEqual' Nothing $ wasFlashFired Map.empty
-	assertEqual' (Just False) $ wasFlashFired $ makeExifMapWithFlash 0
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 1
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 5
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 7
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 9
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x0D
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x0F
-	assertEqual' (Just False) $ wasFlashFired $ makeExifMapWithFlash 0x10
-	assertEqual' (Just False) $ wasFlashFired $ makeExifMapWithFlash 0x18
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x19
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x1D
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x1F
-	assertEqual' (Just False) $ wasFlashFired $ makeExifMapWithFlash 0x20
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x41
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x45
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x47
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x4D
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x4F
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x59
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x5D
-	assertEqual' (Just True) $ wasFlashFired $ makeExifMapWithFlash 0x5F
+	let check (ex, val) = Just ex == (wasFlashFired $ makeExifMapWithFlash val)
+	assertBool "a number test fails" $ all check [
+		(False, 0), (True, 1), (True, 5), (True, 7), (True, 9), (True, 0x0D),
+		(True, 0x0F), (False, 0x10), (False, 0x18), (True, 0x19), (True, 0x1D),
+		(True, 0x1F), (False, 0x20), (True, 0x41), (True, 0x45), (True, 0x47),
+		(True, 0x4D), (True, 0x4F), (True, 0x59), (True, 0x5D), (True, 0x5F)]
 
 makeExifMapWithFlash :: Int -> Map ExifTag ExifValue
 makeExifMapWithFlash flashV = Map.fromList [(flash, ExifNumber flashV)]
 
 testPartialExif :: B.ByteString -> Spec
 testPartialExif imageContents = it "parses a partial exif JPEG" $ do
-	assertEqualListDebug [] (Map.toList parsed)
-	where
-		parsed = (\(Right x) -> x) $ parseExif imageContents
+	assertEqual' (Right []) (Map.toList <$> parseExif imageContents)
 
 assertEqualListDebug :: (Show a, Eq a) => [a] -> [a] -> Assertion
 assertEqualListDebug = assertEqualListDebug' (0 :: Int)
