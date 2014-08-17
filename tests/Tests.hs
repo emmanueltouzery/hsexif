@@ -53,62 +53,68 @@ testNoExif imageContents = it "returns empty list if no EXIF" $
 
 testBasic :: B.ByteString -> Spec
 testBasic imageContents = it "parses a simple JPEG" $ do
-	assertEqualListDebug 
-		(sort [
-			(exposureTime, ExifRational 1 160),
-			(fnumber, ExifRational 0 10),
-			(exposureProgram, ExifNumber 2),
-			(isoSpeedRatings, ExifNumber 1600),
-			(exifVersion, ExifUndefined "0230"),
-			(dateTimeOriginal, ExifText "2013:10:02 20:33:33"),
-			(dateTimeDigitized, ExifText "2013:10:02 20:33:33"),
-			(componentConfiguration, ExifUndefined "\SOH\STX\ETX\NUL"),
-			(compressedBitsPerPixel, ExifRational 2 1),
-			(brightnessValue, ExifRational (-4226) 2560),
-			(exposureBiasValue, ExifRational 0 10),
-			(maxApertureValue, ExifRational 0 10),
-			(meteringMode, ExifNumber 5),
-			(lightSource, ExifNumber 0),
-			(flash, ExifNumber 24),
-			(focalLength, ExifRational 0 10),
-			(flashPixVersion, ExifUndefined "0100"),
-			(colorSpace, ExifNumber 1),
-			(sceneType, ExifUndefined "\SOH"),
-			(exifImageWidth, ExifNumber 1),
-			(exifImageHeight, ExifNumber 1),
-			(exifInteroperabilityOffset, ExifNumber 36616),
-			(customRendered, ExifNumber 0),
-			(exposureMode, ExifNumber 0),
-			(whiteBalance, ExifNumber 0),
-			(digitalZoomRatio, ExifRational 16 16),
-			(focalLengthIn35mmFilm, ExifNumber 0),
-			(contrast, ExifNumber 0),
-			(saturation, ExifNumber 0),
-			(sceneCaptureType, ExifNumber 0),
-			(sharpness, ExifNumber 0),
-			(make, ExifText "SONY"),
-			(model, ExifText "NEX-3N"),
-			(software, ExifText "GIMP 2.8.10"),
-			(orientation, ExifNumber 1),
-			(imageDescription, ExifText "                               "),
-			(xResolution, ExifRational 350 1),
-			(yResolution, ExifRational 350 1),
-			(resolutionUnit, ExifNumber 2),
-			(userComment, ExifUndefined "UNICODE\NULT\NULe\NULs\NULt\NUL \NULE\NULx\NULi\NULf\NUL \NULc\NULo\NULm\NULm\NULe\NULn\NULt\NUL\r\SOHa\SOH~\SOH"),
-			(dateTime, ExifText "2014:04:10 20:14:20"),
-			(yCbCrPositioning, ExifNumber 2),
-			(fileSource, ExifUndefined "\ETX"),
-			(exifIfdOffset, ExifNumber 358),
-			(printImageMatching, ExifUndefined "PrintIM\NUL0300\NUL\NUL\ETX\NUL\STX\NUL\SOH\NUL\NUL\NUL\ETX\NUL\"\NUL\NUL\NUL\SOH\SOH\NUL\NUL\NUL\NUL\t\DC1\NUL\NUL\DLE'\NUL\NUL\v\SI\NUL\NUL\DLE'\NUL\NUL\151\ENQ\NUL\NUL\DLE'\NUL\NUL\176\b\NUL\NUL\DLE'\NUL\NUL\SOH\FS\NUL\NUL\DLE'\NUL\NUL^\STX\NUL\NUL\DLE'\NUL\NUL\139\NUL\NUL\NUL\DLE'\NUL\NUL\203\ETX\NUL\NUL\DLE'\NUL\NUL\229\ESC\NUL\NUL\DLE'\NUL\NUL")
-		]) (sort $ Map.toList cleanedParsed)
+	case cleanedParsedM of
+		Nothing -> assertBool "Parsing fails" False
+		Just cleanedParsed -> assertEqualListDebug 
+			(sort [
+				(exposureTime, ExifRational 1 160),
+				(fnumber, ExifRational 0 10),
+				(exposureProgram, ExifNumber 2),
+				(isoSpeedRatings, ExifNumber 1600),
+				(exifVersion, ExifUndefined "0230"),
+				(dateTimeOriginal, ExifText "2013:10:02 20:33:33"),
+				(dateTimeDigitized, ExifText "2013:10:02 20:33:33"),
+				(componentConfiguration, ExifUndefined "\SOH\STX\ETX\NUL"),
+				(compressedBitsPerPixel, ExifRational 2 1),
+				(brightnessValue, ExifRational (-4226) 2560),
+				(exposureBiasValue, ExifRational 0 10),
+				(maxApertureValue, ExifRational 0 10),
+				(meteringMode, ExifNumber 5),
+				(lightSource, ExifNumber 0),
+				(flash, ExifNumber 24),
+				(focalLength, ExifRational 0 10),
+				(flashPixVersion, ExifUndefined "0100"),
+				(colorSpace, ExifNumber 1),
+				(sceneType, ExifUndefined "\SOH"),
+				(exifImageWidth, ExifNumber 1),
+				(exifImageHeight, ExifNumber 1),
+				(exifInteroperabilityOffset, ExifNumber 36616),
+				(customRendered, ExifNumber 0),
+				(exposureMode, ExifNumber 0),
+				(whiteBalance, ExifNumber 0),
+				(digitalZoomRatio, ExifRational 16 16),
+				(focalLengthIn35mmFilm, ExifNumber 0),
+				(contrast, ExifNumber 0),
+				(saturation, ExifNumber 0),
+				(sceneCaptureType, ExifNumber 0),
+				(sharpness, ExifNumber 0),
+				(make, ExifText "SONY"),
+				(model, ExifText "NEX-3N"),
+				(software, ExifText "GIMP 2.8.10"),
+				(orientation, ExifNumber 1),
+				(imageDescription, ExifText "                               "),
+				(xResolution, ExifRational 350 1),
+				(yResolution, ExifRational 350 1),
+				(resolutionUnit, ExifNumber 2),
+				(userComment, ExifUndefined "UNICODE\NULT\NULe\NULs\NULt\NUL \NULE\NULx\NULi\NULf\NUL \NULc\NULo\NULm\NULm\NULe\NULn\NULt\NUL\r\SOHa\SOH~\SOH"),
+				(dateTime, ExifText "2014:04:10 20:14:20"),
+				(yCbCrPositioning, ExifNumber 2),
+				(fileSource, ExifUndefined "\ETX"),
+				(exifIfdOffset, ExifNumber 358),
+				(printImageMatching, ExifUndefined "PrintIM\NUL0300\NUL\NUL\ETX\NUL\STX\NUL\SOH\NUL\NUL\NUL\ETX\NUL\"\NUL\NUL\NUL\SOH\SOH\NUL\NUL\NUL\NUL\t\DC1\NUL\NUL\DLE'\NUL\NUL\v\SI\NUL\NUL\DLE'\NUL\NUL\151\ENQ\NUL\NUL\DLE'\NUL\NUL\176\b\NUL\NUL\DLE'\NUL\NUL\SOH\FS\NUL\NUL\DLE'\NUL\NUL^\STX\NUL\NUL\DLE'\NUL\NUL\139\NUL\NUL\NUL\DLE'\NUL\NUL\203\ETX\NUL\NUL\DLE'\NUL\NUL\229\ESC\NUL\NUL\DLE'\NUL\NUL")
+			]) (sort cleanedParsed)
 	-- the sony maker note is 35k!! Just test its size and that it starts with "SONY DSC".
-	assertEqual' 35692 (BS.length makerNoteV)
-	assertEqual' "SONY DSC" (take 8 $ fmap (chr . fromIntegral) $ BS.unpack makerNoteV)
+	assertEqual' (Just 35692) (BS.length <$> makerNoteV)
+	assertEqual' (Just "SONY DSC") (take 8 <$> fmap (chr . fromIntegral) <$> BS.unpack <$> makerNoteV)
 	where
 		-- the makerNote is HUGE. so test it separately.
-		parsed = (\(Right x) -> x) $ parseExif imageContents
-		cleanedParsed = Map.fromList $ filter (\(a,_) -> (a/=makerNote)) $ Map.toList parsed
-		makerNoteV = (\(Just (ExifUndefined x)) -> x) $ Map.lookup makerNote parsed
+		parsed = hush $ parseExif imageContents
+		cleanedParsedM = filter ((/=makerNote) . fst) <$> (Map.toList <$> parsed)
+		makerNoteV = parsed >>= Map.lookup makerNote >>= getUndefMaybe
+
+getUndefMaybe :: ExifValue -> Maybe BS.ByteString
+getUndefMaybe (ExifUndefined x) = Just x
+getUndefMaybe _ = Nothing
 
 testDate :: Maybe (Map ExifTag ExifValue) -> Spec
 testDate exifData = it "extracts the date correctly" $
