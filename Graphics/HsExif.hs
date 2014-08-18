@@ -146,7 +146,7 @@ module Graphics.HsExif (
 import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteString.Lazy as B
-import Control.Monad (liftM, unless)
+import Control.Monad (liftM, unless, replicateM)
 import Control.Applicative ( (<$>) )
 import qualified Data.ByteString.Char8 as Char8
 import Data.Word
@@ -246,8 +246,8 @@ parseTiffHeader = do
 
 parseIfd :: ByteAlign -> Int -> Get (Maybe Word32, Maybe Word32, [(ExifTag, ExifValue)])
 parseIfd byteAlign tiffHeaderStart = do
-	dirEntriesCount <- toInteger <$> getWord16 byteAlign
-	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign) [1..dirEntriesCount]
+	dirEntriesCount <- fromIntegral <$> getWord16 byteAlign
+	ifdEntries <- replicateM dirEntriesCount (parseIfEntry byteAlign)
 	let exifOffset = entryContentsByTag exifIfdOffset ifdEntries
 	let gpsOffset = entryContentsByTag gpsTagOffset ifdEntries
 	entries <- mapM (decodeEntry byteAlign tiffHeaderStart IFD0) ifdEntries
@@ -258,8 +258,8 @@ entryContentsByTag tag = fmap entryContents . find (\e -> entryTag e == tagKey t
 
 parseSubIfd :: ByteAlign -> Int -> TagLocation -> Get [(ExifTag, ExifValue)]
 parseSubIfd byteAlign tiffHeaderStart location = do
-	dirEntriesCount <- toInteger <$> getWord16 byteAlign
-	ifdEntries <- mapM (\_ -> parseIfEntry byteAlign) [1..dirEntriesCount]
+	dirEntriesCount <- fromIntegral <$> getWord16 byteAlign
+	ifdEntries <- replicateM dirEntriesCount (parseIfEntry byteAlign)
 	mapM (decodeEntry byteAlign tiffHeaderStart location) ifdEntries
 
 data IfEntry = IfEntry
