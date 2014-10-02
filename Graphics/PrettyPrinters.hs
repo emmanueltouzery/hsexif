@@ -7,6 +7,7 @@ import qualified Data.Map as Map
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import Control.Arrow (first)
+import Control.Applicative
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text as T
 import Data.Text (Text)
@@ -174,7 +175,7 @@ ppGpsAltitudeRef = fromNumberMap [(0, "Sea level"),
 ppComponentConfiguration :: ExifValue -> Text
 ppComponentConfiguration (ExifUndefined bs) = T.pack $ foldl' addComponent [] numbers
 	where
-		numbers :: [Int] = fmap fromIntegral $ BS.unpack bs
+		numbers :: [Int] = fromIntegral <$> BS.unpack bs
 		addComponent soFar c = soFar ++ formatComponent c
 		formatComponent c = case c of
 			0 -> "-"

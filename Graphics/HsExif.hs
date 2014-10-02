@@ -510,10 +510,9 @@ getOrientation exifData = do
 -- if it was not, and Nothing if the file does not contain
 -- the information.
 wasFlashFired :: Map ExifTag ExifValue -> Maybe Bool
-wasFlashFired exifData = do
-	Map.lookup flash exifData >>= \case
-		ExifNumber n -> Just $ n .&. 1 /= 0
-		_ -> Nothing
+wasFlashFired exifData = Map.lookup flash exifData >>= \case
+	ExifNumber n -> Just $ n .&. 1 /= 0
+	_ -> Nothing
 
 -- $intro
 --

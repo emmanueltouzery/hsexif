@@ -190,7 +190,7 @@ getGpsLatitudeLongitude exifData = do
 
 gpsLongLatToCoords :: ExifValue -> Maybe (Double, Double, Double)
 gpsLongLatToCoords (ExifRationalList intPairs) = case fmap intPairToFloating intPairs of
-			(degrees:minutes:seconds:[]) -> Just (degrees, minutes, seconds)
+			[degrees, minutes, seconds] -> Just (degrees, minutes, seconds)
 			_ -> Nothing
 	where
 		intPairToFloating (n, d) = fromIntegral n / fromIntegral d

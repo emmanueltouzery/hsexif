@@ -184,7 +184,7 @@ testFlashFired :: Maybe (Map ExifTag ExifValue) -> Spec
 testFlashFired exifData = it "properly reads whether the flash was fired" $ do
 	assertEqual' (Just False) $ exifData >>= wasFlashFired
 	assertEqual' Nothing $ wasFlashFired Map.empty
-	let check (ex, val) = Just ex == (wasFlashFired $ makeExifMapWithFlash val)
+	let check (ex, val) = Just ex == wasFlashFired (makeExifMapWithFlash val)
 	assertBool "a number test fails" $ all check [
 		(False, 0), (True, 1), (True, 5), (True, 7), (True, 9), (True, 0x0D),
 		(True, 0x0F), (False, 0x10), (False, 0x18), (True, 0x19), (True, 0x1D),
@@ -195,7 +195,7 @@ makeExifMapWithFlash :: Int -> Map ExifTag ExifValue
 makeExifMapWithFlash flashV = Map.fromList [(flash, ExifNumber flashV)]
 
 testPartialExif :: B.ByteString -> Spec
-testPartialExif imageContents = it "parses a partial exif JPEG" $ do
+testPartialExif imageContents = it "parses a partial exif JPEG" $
 	assertEqual' (Right []) (Map.toList <$> parseExif imageContents)
 
 assertEqualListDebug :: (Show a, Eq a) => [a] -> [a] -> Assertion
