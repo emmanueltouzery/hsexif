@@ -1,11 +1,9 @@
 {-# LANGUAGE ScopedTypeVariables, OverloadedStrings #-}
 module Graphics.PrettyPrinters where
 
-import Data.List (foldl')
 import Text.Printf (printf)
 import Data.Map (Map)
 import Data.Maybe
-import Data.Monoid
 import qualified Data.Map as Map
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
@@ -179,10 +177,9 @@ componentMap :: Map Int Text
 componentMap = Map.fromList $ zip [0..] ["-", "Y", "Cb", "Cr", "R", "G", "B"]
 
 ppComponentConfiguration :: ExifValue -> Text
-ppComponentConfiguration (ExifUndefined bs) = foldl' addComponent "" numbers
+ppComponentConfiguration (ExifUndefined bs) = T.concat $ map formatComponent numbers
     where
-        numbers :: [Int] = fromIntegral <$> BS.unpack bs
-        addComponent soFar c = soFar <> formatComponent c
+        numbers = fromIntegral <$> BS.unpack bs
         formatComponent = fromMaybe "?" . flip Map.lookup componentMap
 ppComponentConfiguration v@_ = unknown v
 
