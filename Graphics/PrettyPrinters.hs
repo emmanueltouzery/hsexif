@@ -3,6 +3,9 @@ module Graphics.PrettyPrinters where
 
 import Data.List (foldl')
 import Text.Printf (printf)
+import Data.Map (Map)
+import Data.Maybe
+import Data.Monoid
 import qualified Data.Map as Map
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
@@ -172,20 +175,15 @@ ppGpsAltitudeRef :: ExifValue -> Text
 ppGpsAltitudeRef = fromNumberMap [(0, "Sea level"),
     			(1, "Below sea level")]
 
+componentMap :: Map Int Text
+componentMap = Map.fromList $ zip [0..] ["-", "Y", "Cb", "Cr", "R", "G", "B"]
+
 ppComponentConfiguration :: ExifValue -> Text
-ppComponentConfiguration (ExifUndefined bs) = T.pack $ foldl' addComponent [] numbers
+ppComponentConfiguration (ExifUndefined bs) = foldl' addComponent "" numbers
 	where
 		numbers :: [Int] = fromIntegral <$> BS.unpack bs
-		addComponent soFar c = soFar ++ formatComponent c
-		formatComponent c = case c of
-			0 -> "-"
-			1 -> "Y"
-			2 -> "Cb"
-			3 -> "Cr"
-			4 -> "R"
-			5 -> "G"
-			6 -> "B"
-			_ -> "?"
+		addComponent soFar c = soFar <> formatComponent c
+		formatComponent = fromMaybe "?" . flip Map.lookup componentMap
 ppComponentConfiguration v@_ = unknown v
 
 ppFlashPixVersion :: ExifValue -> Text
