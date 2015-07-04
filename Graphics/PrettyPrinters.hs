@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables, OverloadedStrings, FlexibleContexts #-}
 module Graphics.PrettyPrinters where
 
 import Text.Printf (printf)
