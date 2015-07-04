@@ -42,7 +42,7 @@ module Graphics.HsExif (
 	software,
 	copyright,
 	digitalZoomRatio,
-	focalLengthIn35mmFilm, 
+	focalLengthIn35mmFilm,
 	artist,
 
 	-- * GPS related exif tags
@@ -192,7 +192,7 @@ findAndParseExifBlock = do
 		0xffe1 -> parseExifBlock
 		-- ffda is Start Of Stream => image
 		-- I expect no more EXIF data after this point.
-		0xffda -> fail "No EXIF in JPEG" 
+		0xffda -> fail "No EXIF in JPEG"
 		_ -> skip (dataSize-2) >> findAndParseExifBlock
 
 data ByteAlign = Intel | Motorola
@@ -468,16 +468,12 @@ getExifDateTime = do
 	hour <- getCharValue ' ' >> readDigit 2
 	minute <- getCharValue ':' >> readDigit 2
 	second <- getCharValue ':' >> readDigit 2
-	-- the realToFrac is workaround for a GHC 7.8.0->7.8.2 bug:
-	-- https://ghc.haskell.org/trac/ghc/ticket/9231
-	-- actually generates a warning and it's good, reminds me to
-	-- remove it someday, since 7.8.3 is out and with the fix.
-	return $ LocalTime (fromGregorian year month day) (TimeOfDay hour minute $ realToFrac second)
-	
+	return $ LocalTime (fromGregorian year month day) (TimeOfDay hour minute second)
+
 -- | Extract the date and time when the picture was taken
 -- from the EXIF information.
 getDateTimeOriginal :: Map ExifTag ExifValue -> Maybe LocalTime
-getDateTimeOriginal exifData = Map.lookup dateTimeOriginal exifData >>= readExifDateTime . show 
+getDateTimeOriginal exifData = Map.lookup dateTimeOriginal exifData >>= readExifDateTime . show
 
 data RotationDirection = MinusNinety
 	| Ninety
