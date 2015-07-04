@@ -231,11 +231,11 @@ parseGpsTime _ = Nothing
 
 ppGpsTimeStamp :: ExifValue -> Text
 ppGpsTimeStamp exifV = maybe "invalid" (T.pack . formatTod) $ parseGpsTime exifV
-    where formatTod (TimeOfDay h m s) = printf "%02d" h ++ ":" ++ printf "%02d" m ++ ":" ++ printf "%02.2f" (realToFrac s :: Float)
+    where formatTod (TimeOfDay h m s) = printf "%02d:%02d:%02.2f" h m (realToFrac s :: Float)
 
 ppGpsDateStamp :: ExifValue -> Text
 ppGpsDateStamp exifV = maybe "invalid" (T.pack . formatDay . toGregorian) $ parseGpsDate exifV
-    where formatDay (year, month, day) = show year ++ "-" ++ printf "%02d" month ++ "-" ++ printf "%02d" day
+    where formatDay (year, month, day) = printf "%d-%02d-%02d" year month day
 
 ppGpsLatitudeRef :: ExifValue -> Text
 ppGpsLatitudeRef (ExifText "N") = "North"
