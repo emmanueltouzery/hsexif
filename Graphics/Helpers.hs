@@ -13,18 +13,18 @@ hush = either (const Nothing) Just
 
 runEitherGet :: Get a -> B.ByteString -> Either String a
 runEitherGet get bs = case runGetOrFail get bs of
-	Left (_,_,errorMsg) -> Left errorMsg
-	Right (_,_,x) -> Right x
+    Left (_,_,errorMsg) -> Left errorMsg
+    Right (_,_,x)       -> Right x
 
 runMaybeGet :: Get a -> B.ByteString -> Maybe a
 runMaybeGet get = hush . runEitherGet get
 
 getCharWhere :: (Char->Bool) -> Get Char
 getCharWhere wher = do
-	char <- chr . fromIntegral <$> getWord8
-	if wher char
-		then return char
-		else fail "no parse"
+    char <- chr . fromIntegral <$> getWord8
+    if wher char
+        then return char
+        else fail "no parse"
 
 getDigit :: Get Char
 getDigit = getCharWhere isDigit
