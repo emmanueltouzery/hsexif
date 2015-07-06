@@ -14,7 +14,7 @@ maintainer:          etouzery@gmail.com
 -- copyright:
 category:            Graphics
 build-type:          Simple
--- extra-source-files:
+extra-source-files:  tests/*.jpg tests/*.png
 cabal-version:       >=1.10
 
 library
