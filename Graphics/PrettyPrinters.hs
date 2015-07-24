@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables, OverloadedStrings, CPP #-}
 module Graphics.PrettyPrinters where
 
 import Text.Printf (printf)
@@ -6,13 +6,15 @@ import Data.Map (Map)
 import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BL
 import Control.Arrow (first)
 import Control.Applicative
-import Data.Text.Encoding (decodeUtf8)
+import Data.Text.Encoding
 import qualified Data.Text as T
 import Data.Text (Text)
+#if ICONV
+import qualified Data.ByteString.Lazy as BL
 import Codec.Text.IConv (convertFuzzy, EncodingName, Fuzzy(Transliterate))
+#endif
 
 import Graphics.Types (ExifValue(..), formatAsFloatingPoint)
 
@@ -196,6 +198,12 @@ formatVersion fmt (ExifUndefined s) = T.pack $ printf fmt num
         asStr = T.unpack $ decodeUtf8 s
 formatVersion _ v@_ = unknown v
 
+#if ICONV
+
+getIconvEncodingName :: Text -> EncodingName
+getIconvEncodingName "JIS" = "SJIS"
+getIconvEncodingName x@_ = T.unpack x -- ASCII and UNICODE work out of the box.
+
 ppUserComment :: ExifValue -> Text
 ppUserComment (ExifUndefined v) = decodeUtf8 $ BL.toStrict $ convertFuzzy Transliterate encoding "UTF8" rawText
     where
@@ -203,16 +211,20 @@ ppUserComment (ExifUndefined v) = decodeUtf8 $ BL.toStrict $ convertFuzzy Transl
         rawText = BL.fromStrict $ BS.drop 8 v
 ppUserComment v@_ = unknown v
 
+#else
+
+ppUserComment :: ExifValue -> Text
+ppUserComment (ExifUndefined v) = decodeUtf8 $ BS.drop 8 v
+ppUserComment v@_ = unknown v
+
+#endif
+
 -- | Pretty printer for the FileSource tag
 ppFileSource :: ExifValue -> Text
 ppFileSource (ExifUndefined v)
     | BS.head v == 3 = "DSC"
     | otherwise      = "(unknown)"
 ppFileSource v = unknown v
-
-getIconvEncodingName :: Text -> EncodingName
-getIconvEncodingName "JIS" = "SJIS"
-getIconvEncodingName x@_ = T.unpack x -- ASCII and UNICODE work out of the box.
 
 fromNumberMap :: [(Int, Text)] -> ExifValue -> Text
 fromNumberMap m = fromMap convertedMap

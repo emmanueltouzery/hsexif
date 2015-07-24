@@ -530,3 +530,7 @@ wasFlashFired exifData = Map.lookup flash exifData >>= \case
 --
 -- There are also a couple of higher-level helpers like 'getOrientation',
 -- 'getDateTimeOriginal', 'wasFlashFired' and 'getGpsLatitudeLongitude'.
+--
+-- When building on Windows if you have trouble with the @iconv@ library,
+-- you may build without that dependency: @cabal install -f-iconv@.
+-- That way you loose nice decoding of the EXIF User Comment though.
