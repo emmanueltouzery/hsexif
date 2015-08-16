@@ -146,9 +146,11 @@ module Graphics.HsExif (
 import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteString.Lazy as B
+import qualified Data.ByteString as BS
 import Control.Monad (liftM, unless, replicateM)
 import Control.Applicative ( (<$>) )
 import qualified Data.ByteString.Char8 as Char8
+import Data.ByteString.Internal (w2c)
 import Data.Word
 import Data.Char (ord)
 import Data.Int (Int32, Int16, Int8)
@@ -300,6 +302,14 @@ readNumberList :: Integral a => (ByteAlign -> Get a) -> ByteAlign -> Int -> Get 
 readNumberList decoder byteAlign components = ExifNumberList . fmap fromIntegral <$>
             count components (decoder byteAlign)
 
+decodeTextByteString :: BS.ByteString -> String
+decodeTextByteString bs = w2c <$> strippedWords
+    where
+      strippedWords = if not (null bsWords) && last bsWords == 0
+                      then init bsWords
+                      else bsWords
+      bsWords = BS.unpack bs
+
 unsignedByteValueHandler = ValueHandler
     {
         dataTypeId = 1,
@@ -313,7 +323,7 @@ asciiStringValueHandler = ValueHandler
         dataTypeId = 2,
         dataLength = 1,
         readSingle = \ba -> readMany asciiStringValueHandler ba 1,
-        readMany = \_ components -> ExifText . Char8.unpack <$> getByteString (components-1)
+        readMany = \_ components -> ExifText . decodeTextByteString <$> getByteString components
     }
 
 unsignedShortValueHandler = ValueHandler

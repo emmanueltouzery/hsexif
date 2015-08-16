@@ -24,11 +24,13 @@ main = do
     png <- B.readFile "tests/test.png"
     gps <- B.readFile "tests/gps.jpg"
     gps2 <- B.readFile "tests/gps2.jpg"
+    gps3 <- B.readFile "tests/gps3.jpg"
     partial <- B.readFile "tests/partial_exif.jpg"
     let parseExifM = hush . parseExif
     let exifData = parseExifM imageContents
     let gpsExifData = parseExifM gps
     let gps2ExifData = parseExifM gps2
+    let gps3ExifData = parseExifM gps3
     hspec $ do
         describe "not a JPG" $ testNotAJpeg png
         describe "no EXIF" $ testNoExif noExif
@@ -36,8 +38,10 @@ main = do
         describe "extract picture date" $ testDate exifData
         describe "image orientation" $ testOrientation exifData
         describe "read exif date time" testReadExifDateTime
-        describe "read GPS lat long" $ testReadGpsLatLong gpsExifData
+        describe "read GPS lat long" $ testReadGpsLatLong gpsExifData 50.2179 (-5.031)
         describe "read GPS lat long -- no data" $ testReadGpsLatLongNoData exifData
+        describe "read GPS lat long -- length 1 for rel" $
+            testReadGpsLatLong gps3ExifData 38.1785 (-7.2109)
         describe "test formatAsFloatingPoint" testFormatAsFloatingPoint
         describe "pretty printing" $ testPrettyPrint gpsExifData exifData gps2ExifData
         describe "flash fired" $ testFlashFired exifData
@@ -130,11 +134,13 @@ testReadExifDateTime = it "reads exif date time" $ do
     assertEqual' (Just $ LocalTime (fromGregorian 2013 10 2) (TimeOfDay 20 33 33)) (readExifDateTime "2013:10:02 20:33:33")
     assertEqual' Nothing (readExifDateTime "2013:10:02 20:33:3")
 
-testReadGpsLatLong :: Maybe (Map ExifTag ExifValue) -> Spec
-testReadGpsLatLong exifData = it "reads gps latitude longitude" $ do
+testReadGpsLatLong :: Maybe (Map ExifTag ExifValue) -> Double -> Double -> Spec
+testReadGpsLatLong exifData xLat xLong = it "reads gps latitude longitude" $ do
     let (Just (lat,long)) = exifData >>= getGpsLatitudeLongitude
-    assertBool' $ 50.2179 < lat && 50.2180 > lat
-    assertBool' $ -5.031 > long && -5.032 < long
+    let equalEnough a b = assertBool (show a ++ " too different from " ++ show b ) $
+                          abs (a - b) < 0.001
+    equalEnough lat xLat
+    equalEnough long xLong
 
 testReadGpsLatLongNoData :: Maybe (Map ExifTag ExifValue) -> Spec
 testReadGpsLatLongNoData exifData = it "reads gps latitude longitude" $
@@ -212,6 +218,3 @@ assertEqualListDebug = assertEqualListDebug' (0 :: Int)
 
 assertEqual' :: (Show a, Eq a) => a -> a -> Assertion
 assertEqual' = assertEqual "doesn't match"
-
-assertBool' :: Bool -> Assertion
-assertBool' = assertBool "doesn't match"
