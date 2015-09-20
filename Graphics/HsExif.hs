@@ -453,9 +453,14 @@ parseOffset :: ByteAlign -> Int -> ValueHandler -> IfEntry -> Get ExifValue
 parseOffset byteAlign tiffHeaderStart handler entry = do
     let contentsInt = fromIntegral $ toInteger $ entryContents entry
     curPos <- fromIntegral <$> bytesRead
-    skip $ contentsInt + tiffHeaderStart - curPos
-    bytestring <- getLazyByteString (fromIntegral $ entryNoComponents entry * dataLength handler)
-    return $ parseInline byteAlign handler entry bytestring
+    -- this skip can take me quite far and I can't skip
+    -- back with binary. So do the skip with a lookAhead.
+    -- see https://github.com/emmanueltouzery/hsexif/issues/9
+    lookAhead $ do
+        skip (contentsInt + tiffHeaderStart - curPos)
+        let bsLength = entryNoComponents entry * dataLength handler
+        bytestring <- getLazyByteString (fromIntegral bsLength)
+        return (parseInline byteAlign handler entry bytestring)
 
 signedInt32ToInt :: Word32 -> Int
 signedInt32ToInt w = fromIntegral (fromIntegral w :: Int32)
