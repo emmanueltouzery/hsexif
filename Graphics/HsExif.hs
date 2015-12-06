@@ -147,7 +147,7 @@ import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString as BS
-import Control.Monad (liftM, unless, replicateM)
+import Control.Monad
 import Control.Applicative ( (<$>) )
 import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString.Internal (w2c)
@@ -161,6 +161,8 @@ import Data.Map (Map)
 import Data.Time.LocalTime
 import Data.Time.Calendar
 import Data.Bits ((.&.))
+import Control.Exception
+import System.IO
 
 import Graphics.Types (ExifValue(..), ExifTag(..), TagLocation(..), formatAsFloatingPoint)
 import Graphics.ExifTags
@@ -172,8 +174,10 @@ import Graphics.Helpers
 -- and http://www.exiv2.org/tags.html
 
 -- | Read EXIF data from the file you give. It's a key-value map.
+-- The reading is strict to avoid file handle exhaustion on a recursive
+-- reading of a directory tree.
 parseFileExif :: FilePath -> IO (Either String (Map ExifTag ExifValue))
-parseFileExif filename = parseExif <$> B.readFile filename
+parseFileExif filename = withFile filename ReadMode ((evaluate =<<) . fmap parseExif . B.hGetContents)
 
 -- | Read EXIF data from a lazy bytestring.
 parseExif :: B.ByteString -> Either String (Map ExifTag ExifValue)
