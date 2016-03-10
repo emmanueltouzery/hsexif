@@ -1,5 +1,5 @@
 name:                hsexif
-version:             0.6.0.7
+version:             0.6.0.8
 synopsis:            EXIF handling library in pure Haskell
 description:         The hsexif library provides functions for working with EXIF data
                      contained in JPEG files. Currently it only supports reading the data.
@@ -24,10 +24,10 @@ library
   other-modules:       Graphics.Types, Graphics.PrettyPrinters, Graphics.ExifTags, Graphics.Helpers
   -- other-extensions:
   build-depends:       base >=4.6 && <5,
-                       binary >=0.7 && <0.8,
+                       binary >=0.7 && <0.9,
                        bytestring >=0.10 && <0.11,
                        containers >= 0.5 && <0.6,
-                       time >= 1.4 && <1.6,
+                       time >= 1.4 && <1.7,
                        text >= 0.9
   if flag(iconv)
     build-depends:     iconv >= 0.4 && <0.5
@@ -45,10 +45,10 @@ test-suite             tests
   build-depends:       base,
                        hspec,
                        HUnit >= 1.2 && <1.4,
-                       binary >=0.7 && <0.8,
+                       binary >=0.7 && <0.9,
                        bytestring >=0.10 && <0.11,
                        containers >= 0.5 && <0.6,
-                       time >= 1.4 && <1.6,
+                       time >= 1.4 && <1.7,
                        text >= 0.9
   if flag(iconv)
     build-depends:     iconv >= 0.4 && <0.5
