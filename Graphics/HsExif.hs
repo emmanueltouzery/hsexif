@@ -185,13 +185,15 @@ parseExif = runEitherGet getExif
 
 getExif :: Get (Map ExifTag ExifValue)
 getExif = do
-    header <- getWord16be
-    unless (header == 0xffd8)
-        $ fail "Not a JPEG file"
-    findAndParseExifBlock
+    firstBytes <- lookAhead $ (,) <$> getWord16be <*> getWord16be
+    case firstBytes of
+        (0xffd8,_ ) -> getWord16be >> findAndParseExifBlockJPEG
+        (0x4d4d,42) -> findAndParseExifBlockNEF
+        (0x4949,42) -> findAndParseExifBlockNEF
+        _           -> fail "Not a JPEG or NEF file"
 
-findAndParseExifBlock :: Get (Map ExifTag ExifValue)
-findAndParseExifBlock = do
+findAndParseExifBlockJPEG :: Get (Map ExifTag ExifValue)
+findAndParseExifBlockJPEG = do
     markerNumber <- getWord16be
     dataSize <- fromIntegral . toInteger <$> getWord16be
     case markerNumber of
@@ -199,7 +201,10 @@ findAndParseExifBlock = do
         -- ffda is Start Of Stream => image
         -- I expect no more EXIF data after this point.
         0xffda -> fail "No EXIF in JPEG"
-        _ -> skip (dataSize-2) >> findAndParseExifBlock
+        _ -> skip (dataSize-2) >> findAndParseExifBlockJPEG
+
+findAndParseExifBlockNEF :: Get (Map ExifTag ExifValue)
+findAndParseExifBlockNEF = parseTiff
 
 data ByteAlign = Intel | Motorola
 
@@ -221,6 +226,10 @@ parseExifBlock = do
     nul <- toInteger <$> getWord16be
     unless (header == Char8.pack "Exif" && nul == 0)
         $ fail "invalid EXIF header"
+    parseTiff
+
+parseTiff :: Get (Map ExifTag ExifValue)
+parseTiff = do
     tiffHeaderStart <- fromIntegral <$> bytesRead
     byteAlign <- parseTiffHeader
     let subIfdParse = parseSubIFD byteAlign tiffHeaderStart
