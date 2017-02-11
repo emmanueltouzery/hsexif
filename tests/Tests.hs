@@ -5,6 +5,7 @@ import Test.HUnit
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString as BS
 import Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Time.LocalTime
@@ -21,16 +22,18 @@ main :: IO ()
 main = do
     imageContents <- B.readFile "tests/test.jpg"
     noExif <- B.readFile "tests/noexif.jpg"
-    png <- B.readFile "tests/test.png"
-    gps <- B.readFile "tests/gps.jpg"
+    png  <- B.readFile "tests/test.png"
+    gps  <- B.readFile "tests/gps.jpg"
     gps2 <- B.readFile "tests/gps2.jpg"
     gps3 <- B.readFile "tests/gps3.jpg"
     partial <- B.readFile "tests/partial_exif.jpg"
-    let parseExifM = hush . parseExif
-    let exifData = parseExifM imageContents
-    let gpsExifData = parseExifM gps
+    tiff <- B.readFile "tests/RAW_NIKON_D1.NEF"
+    let parseExifM   = hush . parseExif
+    let exifData     = parseExifM imageContents
+    let gpsExifData  = parseExifM gps
     let gps2ExifData = parseExifM gps2
     let gps3ExifData = parseExifM gps3
+    let tiffExifData = parseExifM tiff
     hspec $ do
         describe "not a JPG" $ testNotAJpeg png
         describe "no EXIF" $ testNoExif noExif
@@ -46,10 +49,11 @@ main = do
         describe "pretty printing" $ testPrettyPrint gpsExifData exifData gps2ExifData
         describe "flash fired" $ testFlashFired exifData
         describe "partial exif data" $ testPartialExif partial
+        describe "tiff file" $ testNef tiffExifData
 
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
-    assertEqual' (Left "Not a JPEG file") (parseExif imageContents)
+    assertEqual' (Left "Not a JPEG or NEF file") (parseExif imageContents)
 
 testNoExif :: B.ByteString -> Spec
 testNoExif imageContents = it "returns empty list if no EXIF" $
@@ -206,14 +210,69 @@ testPartialExif :: B.ByteString -> Spec
 testPartialExif imageContents = it "parses a partial exif JPEG" $
     assertEqual' (Right []) (Map.toList <$> parseExif imageContents)
 
+testNef :: Maybe (Map ExifTag ExifValue) -> Spec
+testNef Nothing = it "parses EXIF from a NEF file" $
+                   assertBool "failed to parse EXIF from nef" False
+testNef (Just exifMap) = it "parses EXIF from a NEF file" $ do
+    let makerNoteV = Map.lookup makerNote exifMap >>= getUndefMaybe
+    -- test only the length of the maker note
+    assertEqual' (Just 394) (BS.length <$> makerNoteV)
+    let cleanedExifMap = filter ((/=makerNote) . fst) (Map.toList exifMap)
+    assertEqualListDebug
+        (sort [(exposureTime, ExifRational 10 2500),
+                (fnumber, ExifRational 76 10),
+                (exposureProgram, ExifNumber 2),
+                (dateTimeOriginal, ExifText "2000:11:19 13:01:50"),
+                (dateTimeDigitized, ExifText "2000:11:19 13:01:50"),
+                (exposureBiasValue, ExifRational 0 6),
+                (maxApertureValue, ExifRational 30 10),
+                (meteringMode, ExifNumber 5),
+                (focalLength, ExifRational 200 10),
+                (userComment, ExifUndefined $ BS.concat $ replicate 48 "\NUL"),
+                (subSecTime, ExifText "24"),
+                (subSecTimeOriginal, ExifText "24"),
+                (subSecTimeDigitized, ExifText "24"),
+                (sensingMethod, ExifNumber 2),
+                (fileSource, ExifUndefined "\ETX"),
+                (sceneType, ExifUndefined "\SOH"),
+                (cfaPattern, ExifUndefined "\NUL\STX\NUL\STX\STX\SOH\SOH\NUL"),
+                (ExifTag IFD0 Nothing 0xfe (T.pack . show), ExifNumber 1),
+                (ExifTag IFD0 Nothing 0x100 (T.pack . show), ExifNumber 160),
+                (ExifTag IFD0 Nothing 0x101 (T.pack . show), ExifNumber 120),
+                (ExifTag IFD0 Nothing 0x102 (T.pack . show), ExifNumberList [8,8,8]),
+                (ExifTag IFD0 Nothing 0x103 (T.pack . show), ExifNumber 1),
+                (ExifTag IFD0 Nothing 0x106 (T.pack . show), ExifNumber 2),
+                (imageDescription, ExifText "                               "),
+                (make, ExifText "NIKON CORPORATION"),
+                (model, ExifText "NIKON D1 "),
+                (ExifTag IFD0 Nothing 0x111 (T.pack . show), ExifNumber 1280),
+                (ExifTag IFD0 Nothing 0x115 (T.pack . show), ExifNumber 3),
+                (ExifTag IFD0 Nothing 0x116 (T.pack . show), ExifNumber 120),
+                (ExifTag IFD0 Nothing 0x117 (T.pack . show), ExifNumber 57600),
+                (xResolution, ExifRational 300 1),
+                (yResolution, ExifRational 300 1),
+                (ExifTag IFD0 Nothing 0x11c (T.pack . show), ExifNumber 1),
+                (resolutionUnit, ExifNumber 2),
+                (software, ExifText "Ver.1.05\0"),
+                (dateTime, ExifText "2000:11:19 13:01:50"),
+                (ExifTag IFD0 Nothing 0x14a (T.pack . show), ExifNumber 58880),
+                (referenceBlackWhite, ExifRationalList [(0,1),(255,1),(0,1),(255,1),(0,1),(255,1)]),
+                (copyright, ExifText "Copyright,NIKON CORPORATION,1999\0"),
+                (exifIfdOffset, ExifNumber 528),
+                (ExifTag IFD0 Nothing 0x9003 (T.pack . show), ExifText "2000:11:19 13:01:50"),
+                (ExifTag IFD0 Nothing 0x9216 (T.pack . show), ExifNumberList [1,0,0,0])
+              ])
+        (sort cleanedExifMap)
+
 assertEqualListDebug :: (Show a, Eq a) => [a] -> [a] -> Assertion
 assertEqualListDebug = assertEqualListDebug' (0 :: Int)
     where
         assertEqualListDebug' idx (x:xs) (y:ys) = do
-            assertEqual ("index " ++ show idx ++ " differs: " ++ show x ++ " /= " ++ show y) x y
+            assertEqual ("lengths are off by " ++ show (length ys - length xs) ++
+                         "; index " ++ show idx ++ " differs: " ++ show x ++ " /= " ++ show y) x y
             assertEqualListDebug' (idx+1) xs ys
-        assertEqualListDebug' _ (x:_) [] = assertBool ("List lengths differ, expected " ++ show x) False
-        assertEqualListDebug' _ [] (y:_) = assertBool ("List lengths differ, got " ++ show y) False
+        assertEqualListDebug' _ (x:r) [] = assertBool ("List lengths differ by " ++ show (length r) ++ ", expected " ++ show x) False
+        assertEqualListDebug' _ [] (y:r) = assertBool ("List lengths differ by " ++ show (length r) ++ ", got " ++ show y) False
         assertEqualListDebug' _ [] [] = assertBool "" True
 
 assertEqual' :: (Show a, Eq a) => a -> a -> Assertion
