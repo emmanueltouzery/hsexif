@@ -11,7 +11,7 @@ maintainer:          etouzery@gmail.com
 -- copyright:
 category:            Graphics
 build-type:          Simple
-extra-source-files:  tests/*.jpg tests/*.png
+extra-source-files:  tests/*.jpg tests/*.png tests/*.NEF
 cabal-version:       >=1.10
 
 Flag iconv
