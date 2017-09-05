@@ -53,7 +53,7 @@ main = do
 
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
-    assertEqual' (Left "Not a JPEG or NEF file") (parseExif imageContents)
+    assertEqual' (Left "Not a JPEG, TIFF, or TIFF-based raw file") (parseExif imageContents)
 
 testNoExif :: B.ByteString -> Spec
 testNoExif imageContents = it "returns empty list if no EXIF" $
