@@ -188,9 +188,10 @@ getExif = do
     firstBytes <- lookAhead $ (,) <$> getWord16be <*> getWord16be
     case firstBytes of
         (0xffd8,_ ) -> getWord16be >> findAndParseExifBlockJPEG
-        (0x4d4d,42) -> findAndParseExifBlockNEF
+        (0x4d4d,42) -> findAndParseExifBlockNEF      -- DNG, Nikon
         (0x4949,42) -> findAndParseExifBlockNEF
-        _           -> fail "Not a JPEG or NEF file"
+        (0x4949,0x2A00) -> findAndParseExifBlockNEF  -- TIFF, Canon CR2, Sony ARW
+        _           -> fail "Not a JPEG, TIFF, or TIFF-based raw file"
 
 findAndParseExifBlockJPEG :: Get (Map ExifTag ExifValue)
 findAndParseExifBlockJPEG = do
