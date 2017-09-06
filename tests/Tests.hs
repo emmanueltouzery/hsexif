@@ -171,6 +171,7 @@ testPpExposureTime = it "properly formats exposure time" $ do
     assertEqual'   "8.0 sec." $ ppExposureTime (ExifRational 8 1)
     assertEqual' "1/125 sec." $ ppExposureTime (ExifRational 10 1250)
     assertEqual' "1/300 sec." $ ppExposureTime (ExifRational 10 3000)
+    assertEqual'   "0.8 sec." $ ppExposureTime (ExifRational 10 13)
 
 testPrettyPrint :: Maybe (Map ExifTag ExifValue)
     -> Maybe (Map ExifTag ExifValue)
