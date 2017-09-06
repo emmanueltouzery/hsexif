@@ -16,7 +16,7 @@ import qualified Data.ByteString.Lazy as BL
 import Codec.Text.IConv (convertFuzzy, EncodingName, Fuzzy(Transliterate))
 #endif
 
-import Graphics.Types (ExifValue(..), formatAsFloatingPoint)
+import Graphics.Types (ExifValue(..), formatAsFloatingPoint, formatAsRational)
 
 -- ! Pretty print the undefined data
 ppUndef :: ExifValue -> Text
@@ -33,6 +33,13 @@ ppYCbCrPositioning = fromNumberMap [(1, "Centered"), (2, "Co-sited")]
 
 ppAperture :: ExifValue -> Text
 ppAperture = T.pack . printf "f/%s" . formatAsFloatingPoint 1
+
+ppExposureTime :: ExifValue -> Text
+ppExposureTime v@(ExifRational num den)
+           = let value | num >= den = formatAsFloatingPoint 1 v
+                       | otherwise  = formatAsRational v
+             in T.append (T.pack value) " sec."
+ppExposureTime v = T.pack (show v)
 
 ppExposureProgram :: ExifValue -> Text
 ppExposureProgram = fromNumberMap [(0, "Not defined"),

@@ -15,6 +15,8 @@ import Control.Monad (join)
 import Control.Applicative ( (<$>) )
 import Data.List
 
+import Graphics.Types (formatAsRational)
+import Graphics.PrettyPrinters (ppExposureTime)
 import Graphics.HsExif
 import Graphics.Helpers
 
@@ -46,6 +48,8 @@ main = do
         describe "read GPS lat long -- length 1 for rel" $
             testReadGpsLatLong gps3ExifData 38.1785 (-7.2109)
         describe "test formatAsFloatingPoint" testFormatAsFloatingPoint
+        describe "test formatAsRational" testFormatAsRational
+        describe "test ppExposureTime" testPpExposureTime
         describe "pretty printing" $ testPrettyPrint gpsExifData exifData gps2ExifData
         describe "flash fired" $ testFlashFired exifData
         describe "partial exif data" $ testPartialExif partial
@@ -154,6 +158,19 @@ testFormatAsFloatingPoint :: Spec
 testFormatAsFloatingPoint = it "properly formats as floating point" $ do
     assertEqual' "0.75" $ formatAsFloatingPoint 2 $ ExifRational 3 4
     assertEqual' "0.75, -0.50, 0.25" $ formatAsFloatingPoint 2 $ ExifRationalList [(3,4),(-1,2),(1,4)]
+
+testFormatAsRational :: Spec
+testFormatAsRational = it "properly formats as rational" $ do
+    assertEqual' "3/4" $ formatAsRational $ ExifRational 6 8
+    assertEqual' "2" $ formatAsRational $ ExifRational 8 4
+    assertEqual' "3/4, -1/2, 1/4" $ formatAsRational $ ExifRationalList [(3,4),(-1,2),(1,4)]
+
+testPpExposureTime :: Spec
+testPpExposureTime = it "properly formats exposure time" $ do
+    assertEqual'   "1.3 sec." $ ppExposureTime (ExifRational 13 10)
+    assertEqual'   "8.0 sec." $ ppExposureTime (ExifRational 8 1)
+    assertEqual' "1/125 sec." $ ppExposureTime (ExifRational 10 1250)
+    assertEqual' "1/300 sec." $ ppExposureTime (ExifRational 10 3000)
 
 testPrettyPrint :: Maybe (Map ExifTag ExifValue)
     -> Maybe (Map ExifTag ExifValue)

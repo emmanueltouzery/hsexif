@@ -2,7 +2,7 @@ module Graphics.Types where
 
 import qualified Data.ByteString as BS
 import Data.Word
-import Numeric (showHex)
+import Numeric (showHex, showFFloat)
 import Data.Function (on)
 import Data.List
 import Text.Printf (printf)
@@ -105,5 +105,23 @@ formatAsFloatingPoint n (ExifRationalList values) = intercalate ", " $ foldl' st
 formatAsFloatingPoint _ v = show v
 
 formatNumDenAsString :: Int -> Int -> Int -> String
-formatNumDenAsString n num den = printf formatString (fromIntegral num / fromIntegral den :: Double)
-    where formatString = "%." ++ show n ++ "f"
+formatNumDenAsString n num den = showFFloat (Just n) value ""
+    where value = fromIntegral num / fromIntegral den :: Double
+
+-- | Format the exif value as normalized rational numbers if it makes sense,
+-- otherwise use the default 'show' implementation.
+-- The special behaviour applies only for 'ExifRational' and 'ExifRationalList'.
+formatAsRational :: ExifValue -> String
+formatAsRational value =
+    case value of
+      (ExifRational num den)    -> format num den
+      (ExifRationalList values) -> intercalate ", " [format num den | (num,den) <- values]
+      _                         -> show value
+  where
+    format num den = let d = gcd num den
+                         num' = num `quot` d
+                         den' = den `quot` d
+                     in
+                       if den' == 1
+                         then show num'
+                         else show num' ++ "/" ++ show den'
