@@ -5,7 +5,6 @@ import Data.Word
 import Numeric (showHex, showFFloat)
 import Data.Function (on)
 import Data.List
-import Text.Printf (printf)
 import Data.Text (Text)
 
 -- | An exif value.
