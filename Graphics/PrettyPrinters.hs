@@ -35,15 +35,14 @@ ppAperture :: ExifValue -> Text
 ppAperture = T.pack . printf "f/%s" . formatAsFloatingPoint 1
 
 -- ! Pretty print exposure time.
--- Formats times as fractions when they are faster than one second
--- and the numerator is 1, and as float with one decimal place otherwise.
--- Examples: "4.0 sec.", "1/125 sec.", "0.8 sec."
+-- Formats times slower than 1/4 with one decimal place and
+-- faster times as fractions.
+-- Examples: "4 sec.", "1/125 sec.", "0.8 sec."
 ppExposureTime :: ExifValue -> Text
 ppExposureTime v@(ExifRational num den)
-           = let value | val < 0.1 || (num' == 1 && val < 1) = formatAsRational v
-                       | otherwise            = formatAsFloatingPoint 1 v
-                 num' = num `quot` gcd num den
-                 val = fromIntegral num / (fromIntegral den :: Double)
+           = let seconds = fromIntegral num / (fromIntegral den :: Double)
+                 value | seconds <= 0.25 && seconds > 0 = "1/" ++ show ((round (1 / seconds)) :: Int)
+                       | otherwise = formatAsFloatingPoint (-1) v
              in T.append (T.pack value) " sec."
 ppExposureTime v = T.pack (show v)
 

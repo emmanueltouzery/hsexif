@@ -168,7 +168,7 @@ testFormatAsRational = it "properly formats as rational" $ do
 testPpExposureTime :: Spec
 testPpExposureTime = it "properly formats exposure time" $ do
     assertEqual'   "1.3 sec." $ ppExposureTime (ExifRational 13 10)
-    assertEqual'   "8.0 sec." $ ppExposureTime (ExifRational 8 1)
+    assertEqual'     "8 sec." $ ppExposureTime (ExifRational 8 1)
     assertEqual' "1/125 sec." $ ppExposureTime (ExifRational 10 1250)
     assertEqual' "1/300 sec." $ ppExposureTime (ExifRational 10 3000)
     assertEqual'   "0.8 sec." $ ppExposureTime (ExifRational 10 13)

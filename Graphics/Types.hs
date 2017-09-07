@@ -96,7 +96,8 @@ instance Ord ExifTag where
 -- | Format the exif value as floating-point if it makes sense,
 -- otherwise use the default 'show' implementation.
 -- The first parameter lets you specify how many digits after
--- the comma to format in the result string.
+-- the comma to format in the result string. Negate the value
+-- to strip trailing zeros from the result.
 -- The special behaviour applies only for 'ExifRational' and 'ExifRationalList'.
 formatAsFloatingPoint :: Int -> ExifValue -> String
 formatAsFloatingPoint n (ExifRational num den) = formatNumDenAsString n num den
@@ -105,10 +106,12 @@ formatAsFloatingPoint n (ExifRationalList values) = intercalate ", " $ foldl' st
 formatAsFloatingPoint _ v = show v
 
 formatNumDenAsString :: Int -> Int -> Int -> String
-formatNumDenAsString n num den = showFFloat (Just n) value ""
+formatNumDenAsString n num den | n >= 0    = showFFloat (Just n) value ""
+                               | otherwise = trim0 (showFFloat (Just (-n)) value "")
     where value = fromIntegral num / fromIntegral den :: Double
+          trim0 = reverse . dropWhile ('.'==) . dropWhile ('0'==) . reverse
 
--- | Format the exif value as normalized rational numbers if it makes sense,
+-- | Format the exif value as normalized rational number if it makes sense,
 -- otherwise use the default 'show' implementation.
 -- The special behaviour applies only for 'ExifRational' and 'ExifRationalList'.
 formatAsRational :: ExifValue -> String
