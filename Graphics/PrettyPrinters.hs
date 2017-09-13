@@ -7,7 +7,6 @@ import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.ByteString as BS
 import Control.Arrow (first)
-import Control.Applicative
 import Data.Text.Encoding
 import qualified Data.Text as T
 import Data.Text (Text)
@@ -16,7 +15,7 @@ import qualified Data.ByteString.Lazy as BL
 import Codec.Text.IConv (convertFuzzy, EncodingName, Fuzzy(Transliterate))
 #endif
 
-import Graphics.Types (ExifValue(..), formatAsFloatingPoint)
+import Graphics.Types (ExifValue(..), formatAsFloatingPoint, formatAsNumber)
 
 -- ! Pretty print the undefined data
 ppUndef :: ExifValue -> Text
@@ -33,6 +32,30 @@ ppYCbCrPositioning = fromNumberMap [(1, "Centered"), (2, "Co-sited")]
 
 ppAperture :: ExifValue -> Text
 ppAperture = T.pack . printf "f/%s" . formatAsFloatingPoint 1
+
+-- ! Pretty-print aperture stored as APEX value.
+-- See: https://photo.stackexchange.com/questions/19143/how-can-the-aperture-value-written-in-exif-be-larger-than-the-nominal-limit-of-t
+ppApexAperture :: ExifValue -> Text
+ppApexAperture v = T.pack (printf "f/%.1f" fnumber)
+  where
+    doubleValue :: ExifValue -> Double
+    doubleValue (ExifNumber n) = fromIntegral n
+    doubleValue (ExifRational n d) = fromIntegral n / fromIntegral d
+    doubleValue _ = 0
+    apex = doubleValue v
+    fnumber = 2 ** (apex / 2)
+
+-- ! Pretty print exposure time.
+-- Formats times slower than 1/4 with one decimal place and
+-- faster times as fractions.
+-- Examples: "4 sec.", "1/125 sec.", "0.8 sec."
+ppExposureTime :: ExifValue -> Text
+ppExposureTime v@(ExifRational num den)
+           = let seconds = fromIntegral num / (fromIntegral den :: Double)
+                 value | seconds <= 0.25 && seconds > 0 = "1/" ++ show ((round (1 / seconds)) :: Int)
+                       | otherwise = formatAsNumber 1 v
+             in T.append (T.pack value) " sec."
+ppExposureTime v = T.pack (show v)
 
 ppExposureProgram :: ExifValue -> Text
 ppExposureProgram = fromNumberMap [(0, "Not defined"),

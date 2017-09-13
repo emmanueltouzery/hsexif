@@ -2,10 +2,9 @@ module Graphics.Types where
 
 import qualified Data.ByteString as BS
 import Data.Word
-import Numeric (showHex)
+import Numeric (showHex, showFFloat)
 import Data.Function (on)
 import Data.List
-import Text.Printf (printf)
 import Data.Text (Text)
 
 -- | An exif value.
@@ -99,11 +98,42 @@ instance Ord ExifTag where
 -- the comma to format in the result string.
 -- The special behaviour applies only for 'ExifRational' and 'ExifRationalList'.
 formatAsFloatingPoint :: Int -> ExifValue -> String
-formatAsFloatingPoint n (ExifRational num den) = formatNumDenAsString n num den
-formatAsFloatingPoint n (ExifRationalList values) = intercalate ", " $ foldl' step [] values
-    where step soFar (num,den) = soFar ++ [formatNumDenAsString n num den]
-formatAsFloatingPoint _ v = show v
+formatAsFloatingPoint n = formatNumeric fmt
+  where
+    fmt num den = showFFloat (Just n) (fromIntegral num / fromIntegral den :: Double)
 
-formatNumDenAsString :: Int -> Int -> Int -> String
-formatNumDenAsString n num den = printf formatString (fromIntegral num / fromIntegral den :: Double)
-    where formatString = "%." ++ show n ++ "f"
+-- | Format the exif value as a number if it makes sense,
+-- otherwise use the default 'show' implementation.
+-- The first parameter lets you specify the maximum number
+-- of fractional digits in the result string.
+-- This is the same as formatAsfloatingPoint but with trailing
+-- zeros stripped from the result.
+formatAsNumber :: Int -> ExifValue -> String
+formatAsNumber n = formatNumeric fmt
+  where
+    fmt num den s     = trim0 (fltString num den) ++ s
+    trim0             = reverse . dropWhile ('.'==) . dropWhile ('0'==) . reverse
+    fltString num den = showFFloat (Just n) (fromIntegral num / fromIntegral den :: Double) ""
+
+-- | Format the exif value as normalized rational number if it makes sense,
+-- otherwise use the default 'show' implementation.
+-- The special behaviour applies only for 'ExifRational' and 'ExifRationalList'.
+formatAsRational :: ExifValue -> String
+formatAsRational value = formatNumeric format value
+  where
+    format num den = let d = gcd num den
+                         num' = num `quot` d
+                         den' = den `quot` d
+                     in
+                       if den' == 1
+                         then shows num'
+                         else shows num' . showChar '/' . shows den'
+
+formatNumeric :: (Int -> Int -> ShowS) -> ExifValue -> String
+formatNumeric f (ExifRational num den)    = f num den ""
+formatNumeric f (ExifRationalList values) = go values ""
+  where
+    go []         = id
+    go [(n,d)]    = f n d
+    go ((n,d):ns) = f n d . showString ", " . go ns
+formatNumeric _ value                     = show value
