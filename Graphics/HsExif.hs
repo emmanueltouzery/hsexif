@@ -188,12 +188,12 @@ getExif = do
     firstBytes <- lookAhead $ (,) <$> getWord16be <*> getWord16be
     case firstBytes of
         (0xffd8,_ ) -> getWord16be >> findAndParseExifBlockJPEG
-        (0x4d4d,0x002A) -> findAndParseExifBlockNEF  -- TIFF big-endian: DNG, Nikon
-        (0x4949,0x2A00) -> findAndParseExifBlockNEF  -- TIFF little-endian: Canon CR2, Sony ARW
+        (0x4d4d,0x002A) -> findAndParseExifBlockTiff  -- TIFF big-endian: DNG, Nikon
+        (0x4949,0x2A00) -> findAndParseExifBlockTiff  -- TIFF little-endian: Canon CR2, Sony ARW
         -- The following formats use the TIFF structure, but use their
         -- own version number instead of 42.
-        (0x4949,0x524F) -> findAndParseExifBlockNEF  -- Olympus ORF
-        (0x4949,0x5500) -> findAndParseExifBlockNEF  -- Panasonic RW2
+        (0x4949,0x524F) -> findAndParseExifBlockTiff  -- Olympus ORF
+        (0x4949,0x5500) -> findAndParseExifBlockTiff  -- Panasonic RW2
         _           -> fail "Not a JPEG, TIFF, or TIFF-based raw file"
 
 findAndParseExifBlockJPEG :: Get (Map ExifTag ExifValue)
@@ -207,8 +207,8 @@ findAndParseExifBlockJPEG = do
         0xffda -> fail "No EXIF in JPEG"
         _ -> skip (dataSize-2) >> findAndParseExifBlockJPEG
 
-findAndParseExifBlockNEF :: Get (Map ExifTag ExifValue)
-findAndParseExifBlockNEF = parseTiff
+findAndParseExifBlockTiff :: Get (Map ExifTag ExifValue)
+findAndParseExifBlockTiff = parseTiff
 
 data ByteAlign = Intel | Motorola deriving (Eq)
 
