@@ -95,30 +95,30 @@ instance Ord ExifTag where
 -- | Format the exif value as floating-point if it makes sense,
 -- otherwise use the default 'show' implementation.
 -- The first parameter lets you specify how many digits after
--- the comma to format in the result string. Negate the value
--- to strip trailing zeros from the result.
+-- the comma to format in the result string.
 -- The special behaviour applies only for 'ExifRational' and 'ExifRationalList'.
 formatAsFloatingPoint :: Int -> ExifValue -> String
-formatAsFloatingPoint n (ExifRational num den) = formatNumDenAsString n num den
-formatAsFloatingPoint n (ExifRationalList values) = intercalate ", " $ foldl' step [] values
-    where step soFar (num,den) = soFar ++ [formatNumDenAsString n num den]
-formatAsFloatingPoint _ v = show v
+formatAsFloatingPoint n = formatNumeric fmt
+  where
+    fmt num den = showFFloat (Just n) (fromIntegral num / fromIntegral den :: Double) ""
 
-formatNumDenAsString :: Int -> Int -> Int -> String
-formatNumDenAsString n num den | n >= 0    = showFFloat (Just n) value ""
-                               | otherwise = trim0 (showFFloat (Just (-n)) value "")
-    where value = fromIntegral num / fromIntegral den :: Double
-          trim0 = reverse . dropWhile ('.'==) . dropWhile ('0'==) . reverse
+-- | Format the exif value as a number if it makes sense,
+-- otherwise use the default 'show' implementation.
+-- The first parameter lets you specify the maximum number
+-- of fractional digits in the result string.
+-- This is the same as formatAsfloatingPoint but with trailing
+-- zeros stripped from the result.
+formatAsNumber :: Int -> ExifValue -> String
+formatAsNumber n = formatNumeric fmt
+  where
+    fmt num den = trim0 (showFFloat (Just n) (fromIntegral num / fromIntegral den :: Double) "")
+    trim0 = reverse . dropWhile ('.'==) . dropWhile ('0'==) . reverse
 
 -- | Format the exif value as normalized rational number if it makes sense,
 -- otherwise use the default 'show' implementation.
 -- The special behaviour applies only for 'ExifRational' and 'ExifRationalList'.
 formatAsRational :: ExifValue -> String
-formatAsRational value =
-    case value of
-      (ExifRational num den)    -> format num den
-      (ExifRationalList values) -> intercalate ", " [format num den | (num,den) <- values]
-      _                         -> show value
+formatAsRational value = formatNumeric format value
   where
     format num den = let d = gcd num den
                          num' = num `quot` d
@@ -127,3 +127,8 @@ formatAsRational value =
                        if den' == 1
                          then show num'
                          else show num' ++ "/" ++ show den'
+
+formatNumeric :: (Int -> Int -> String) -> ExifValue -> String
+formatNumeric f (ExifRational num den)    = f num den
+formatNumeric f (ExifRationalList values) = intercalate ", " [f num den | (num,den) <- values]
+formatNumeric _ value                     = show value

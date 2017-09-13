@@ -15,7 +15,7 @@ import qualified Data.ByteString.Lazy as BL
 import Codec.Text.IConv (convertFuzzy, EncodingName, Fuzzy(Transliterate))
 #endif
 
-import Graphics.Types (ExifValue(..), formatAsFloatingPoint)
+import Graphics.Types (ExifValue(..), formatAsFloatingPoint, formatAsNumber)
 
 -- ! Pretty print the undefined data
 ppUndef :: ExifValue -> Text
@@ -53,7 +53,7 @@ ppExposureTime :: ExifValue -> Text
 ppExposureTime v@(ExifRational num den)
            = let seconds = fromIntegral num / (fromIntegral den :: Double)
                  value | seconds <= 0.25 && seconds > 0 = "1/" ++ show ((round (1 / seconds)) :: Int)
-                       | otherwise = formatAsFloatingPoint (-1) v
+                       | otherwise = formatAsNumber 1 v
              in T.append (T.pack value) " sec."
 ppExposureTime v = T.pack (show v)
 
