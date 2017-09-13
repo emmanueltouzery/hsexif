@@ -100,7 +100,7 @@ instance Ord ExifTag where
 formatAsFloatingPoint :: Int -> ExifValue -> String
 formatAsFloatingPoint n = formatNumeric fmt
   where
-    fmt num den = showFFloat (Just n) (fromIntegral num / fromIntegral den :: Double) ""
+    fmt num den = showFFloat (Just n) (fromIntegral num / fromIntegral den :: Double)
 
 -- | Format the exif value as a number if it makes sense,
 -- otherwise use the default 'show' implementation.
@@ -111,8 +111,9 @@ formatAsFloatingPoint n = formatNumeric fmt
 formatAsNumber :: Int -> ExifValue -> String
 formatAsNumber n = formatNumeric fmt
   where
-    fmt num den = trim0 (showFFloat (Just n) (fromIntegral num / fromIntegral den :: Double) "")
-    trim0 = reverse . dropWhile ('.'==) . dropWhile ('0'==) . reverse
+    fmt num den s     = trim0 (fltString num den) ++ s
+    trim0             = reverse . dropWhile ('.'==) . dropWhile ('0'==) . reverse
+    fltString num den = showFFloat (Just n) (fromIntegral num / fromIntegral den :: Double) ""
 
 -- | Format the exif value as normalized rational number if it makes sense,
 -- otherwise use the default 'show' implementation.
@@ -125,10 +126,14 @@ formatAsRational value = formatNumeric format value
                          den' = den `quot` d
                      in
                        if den' == 1
-                         then show num'
-                         else show num' ++ "/" ++ show den'
+                         then shows num'
+                         else shows num' . showChar '/' . shows den'
 
-formatNumeric :: (Int -> Int -> String) -> ExifValue -> String
-formatNumeric f (ExifRational num den)    = f num den
-formatNumeric f (ExifRationalList values) = intercalate ", " [f num den | (num,den) <- values]
+formatNumeric :: (Int -> Int -> ShowS) -> ExifValue -> String
+formatNumeric f (ExifRational num den)    = f num den ""
+formatNumeric f (ExifRationalList values) = go values ""
+  where
+    go []         = id
+    go [(n,d)]    = f n d
+    go ((n,d):ns) = f n d . showString ", " . go ns
 formatNumeric _ value                     = show value
