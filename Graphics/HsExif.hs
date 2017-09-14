@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
--- | Ability to work with the EXIF data contained in JPEG files.
+-- | Ability to work with the EXIF data contained in image files.
 module Graphics.HsExif (
     -- $intro
 
@@ -188,9 +188,12 @@ getExif = do
     firstBytes <- lookAhead $ (,) <$> getWord16be <*> getWord16be
     case firstBytes of
         (0xffd8,_ ) -> getWord16be >> findAndParseExifBlockJPEG
-        (0x4d4d,42) -> findAndParseExifBlockNEF      -- DNG, Nikon
-        (0x4949,42) -> findAndParseExifBlockNEF
-        (0x4949,0x2A00) -> findAndParseExifBlockNEF  -- TIFF, Canon CR2, Sony ARW
+        (0x4d4d,0x002A) -> findAndParseExifBlockTiff  -- TIFF big-endian: DNG, Nikon
+        (0x4949,0x2A00) -> findAndParseExifBlockTiff  -- TIFF little-endian: Canon CR2, Sony ARW
+        -- The following formats use the TIFF structure, but use their
+        -- own version number instead of 42.
+        (0x4949,0x524F) -> findAndParseExifBlockTiff  -- Olympus ORF
+        (0x4949,0x5500) -> findAndParseExifBlockTiff  -- Panasonic RW2
         _           -> fail "Not a JPEG, TIFF, or TIFF-based raw file"
 
 findAndParseExifBlockJPEG :: Get (Map ExifTag ExifValue)
@@ -204,10 +207,10 @@ findAndParseExifBlockJPEG = do
         0xffda -> fail "No EXIF in JPEG"
         _ -> skip (dataSize-2) >> findAndParseExifBlockJPEG
 
-findAndParseExifBlockNEF :: Get (Map ExifTag ExifValue)
-findAndParseExifBlockNEF = parseTiff
+findAndParseExifBlockTiff :: Get (Map ExifTag ExifValue)
+findAndParseExifBlockTiff = parseTiff
 
-data ByteAlign = Intel | Motorola
+data ByteAlign = Intel | Motorola deriving (Eq)
 
 getWord16 :: ByteAlign -> Get Word16
 getWord16 Intel = getWord16le
@@ -254,7 +257,7 @@ parseTiffHeader = do
         "MM" -> return Motorola
         _ -> fail $ "Unknown byte alignment: " ++ byteAlignV
     alignControl <- toInteger <$> getWord16 byteAlign
-    unless (alignControl == 0x2a)
+    unless (alignControl == 0x2a || (byteAlign == Intel && (alignControl == 0x55 || alignControl == 0x4f52)))
         $ fail "exif byte alignment mismatch"
     ifdOffset <- fromIntegral . toInteger <$> getWord32 byteAlign
     skip $ ifdOffset - 8
@@ -542,7 +545,7 @@ wasFlashFired exifData = Map.lookup flash exifData >>= \case
 
 -- $intro
 --
--- EXIF parsing from JPEG files.
+-- EXIF parsing from JPEG and some RAW files.
 -- EXIF tags are enumerated as ExifTag values, check 'exposureTime' for instance.
 -- If you use the predefined ExifTag values, you don't care about details
 -- of the ExifTag type, however you should check out the 'ExifValue' type.
