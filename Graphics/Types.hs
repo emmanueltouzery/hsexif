@@ -4,7 +4,6 @@ import qualified Data.ByteString as BS
 import Data.Word
 import Numeric (showHex, showFFloat)
 import Data.Function (on)
-import Data.List
 import Data.Text (Text)
 
 -- | An exif value.
