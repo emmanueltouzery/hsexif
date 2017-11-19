@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 -- | Ability to work with the EXIF data contained in image files.
 module Graphics.HsExif (
@@ -172,6 +173,7 @@ import Graphics.Helpers
 -- and http://www.cipa.jp/std/documents/e/DC-008-2012_E.pdf
 -- and http://www.awaresystems.be/imaging/tiff/tifftags/privateifd/exif.html
 -- and http://www.exiv2.org/tags.html
+-- and https://libopenraw.freedesktop.org/wiki/Fuji_RAF/
 
 -- | Read EXIF data from the file you give. It's a key-value map.
 -- The reading is strict to avoid file handle exhaustion on a recursive
@@ -194,7 +196,9 @@ getExif = do
         -- own version number instead of 42.
         (0x4949,0x524F) -> findAndParseExifBlockTiff  -- Olympus ORF
         (0x4949,0x5500) -> findAndParseExifBlockTiff  -- Panasonic RW2
-        _           -> fail "Not a JPEG, TIFF, or TIFF-based raw file"
+        -- Fuji RAF files use a custom format with an embedded JPEG preview containing the EXIF data
+        (0x4655,0x4A49) -> findAndParseExifBlockFuji  -- Fuji RAF
+        _           -> fail "Not a JPEG, TIFF, RAF, or TIFF-based raw file"
 
 findAndParseExifBlockJPEG :: Get (Map ExifTag ExifValue)
 findAndParseExifBlockJPEG = do
@@ -209,6 +213,22 @@ findAndParseExifBlockJPEG = do
 
 findAndParseExifBlockTiff :: Get (Map ExifTag ExifValue)
 findAndParseExifBlockTiff = parseTiff
+
+findAndParseExifBlockFuji :: Get (Map ExifTag ExifValue)
+findAndParseExifBlockFuji = do
+    header <- getByteString 16
+    version <- getByteString 4
+    skip 64
+    jpegOffset <- getWord32be
+    unless (header == "FUJIFILMCCD-RAW " && version == "0201") $ fail "Incorrect RAF header"
+    skip $
+      fromIntegral jpegOffset  -- skip to jpeg data (offset is from start of file)
+      - 16                     -- 16 bytes for header
+      - 4                      -- 4 bytes for version
+      - 64                     -- 64 other bytes skiped
+      - 4                      -- 4 bytes jpeg offset
+      + 2                      -- findAndParseExifBlockJPEG expects 2 bytes skipped
+    findAndParseExifBlockJPEG
 
 data ByteAlign = Intel | Motorola deriving (Eq)
 
