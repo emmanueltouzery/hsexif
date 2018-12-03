@@ -135,9 +135,7 @@ module Graphics.HsExif (
     yCbCrPositioning,
     yCbCrCoefficients,
     referenceBlackWhite,
-    exifIfdOffset,
     printImageMatching,
-    gpsTagOffset,
 
     -- * If you need to declare your own exif tags
     ExifTag(..),
@@ -254,22 +252,11 @@ parseExifBlock = do
 
 parseTiff :: Get (Map ExifTag ExifValue)
 parseTiff = do
-    tiffHeaderStart <- fromIntegral <$> bytesRead
-    byteAlign <- parseTiffHeader
-    let subIfdParse = parseSubIFD byteAlign tiffHeaderStart
-    (mExifSubIfdOffsetW, mGpsOffsetW, ifdEntries) <- parseIfd byteAlign tiffHeaderStart
-    gpsData <- maybe (return []) (lookAhead . subIfdParse GpsSubIFD) mGpsOffsetW
-    exifSubEntries <- maybe (return []) (subIfdParse ExifSubIFD) mExifSubIfdOffsetW
-    return $ Map.fromList $ ifdEntries ++ exifSubEntries ++ gpsData
+    (byteAlign, ifdOffset) <- lookAhead parseTiffHeader
+    tags <- parseIfd byteAlign IFD0 ifdOffset
+    return $ Map.fromList tags
 
-parseSubIFD :: ByteAlign -> Int -> TagLocation -> Word32 -> Get [(ExifTag, ExifValue)]
-parseSubIFD byteAlign tiffHeaderStart ifdType offsetW = do
-    let offset = fromIntegral $ toInteger offsetW
-    bytesReadNow <- fromIntegral <$> bytesRead
-    skip $ (offset + tiffHeaderStart) - bytesReadNow
-    parseSubIfd byteAlign tiffHeaderStart ifdType
-
-parseTiffHeader :: Get ByteAlign
+parseTiffHeader :: Get (ByteAlign, Int)
 parseTiffHeader = do
     byteAlignV <- Char8.unpack <$> getByteString 2
     byteAlign <- case byteAlignV of
@@ -280,48 +267,37 @@ parseTiffHeader = do
     unless (alignControl == 0x2a || (byteAlign == Intel && (alignControl == 0x55 || alignControl == 0x4f52)))
         $ fail "exif byte alignment mismatch"
     ifdOffset <- fromIntegral . toInteger <$> getWord32 byteAlign
-    skip $ ifdOffset - 8
-    return byteAlign
+    return (byteAlign, ifdOffset)
 
-parseIfd :: ByteAlign -> Int -> Get (Maybe Word32, Maybe Word32, [(ExifTag, ExifValue)])
-parseIfd byteAlign tiffHeaderStart = do
-    dirEntriesCount <- fromIntegral <$> getWord16 byteAlign
-    ifdEntries <- replicateM dirEntriesCount (parseIfEntry byteAlign)
-    let exifOffset = entryContentsByTag exifIfdOffset ifdEntries
-    let gpsOffset = entryContentsByTag gpsTagOffset ifdEntries
-    entries <- mapM (decodeEntry byteAlign tiffHeaderStart IFD0) ifdEntries
-    return (exifOffset, gpsOffset, entries)
+-- | Parse an Image File Directory table
+parseIfd :: ByteAlign -> TagLocation -> Int -> Get [(ExifTag, ExifValue)]
+parseIfd byteAlign ifdId offset = do
+    entries <- lookAhead $ do
+        skip offset
+        dirEntriesCount <- fromIntegral <$> getWord16 byteAlign
+        replicateM dirEntriesCount (parseIfEntry byteAlign ifdId)
+    
+    concat <$> mapM (entryTags byteAlign) entries
 
-entryContentsByTag :: ExifTag -> [IfEntry] -> Maybe Word32
-entryContentsByTag tag = fmap entryContents . find (\e -> entryTag e == tagKey tag)
+-- | Convert IFD entries to tags, reading sub-IFDs
+entryTags :: ByteAlign -> IfEntry -> Get [(ExifTag, ExifValue)]
+entryTags _ (Tag tag parseValue) = parseValue >>= \value -> pure [(tag, value)]
+entryTags byteAlign (SubIFD ifdId offset) = lookAhead (parseIfd byteAlign ifdId offset)
 
-parseSubIfd :: ByteAlign -> Int -> TagLocation -> Get [(ExifTag, ExifValue)]
-parseSubIfd byteAlign tiffHeaderStart location = do
-    dirEntriesCount <- fromIntegral <$> getWord16 byteAlign
-    ifdEntries <- replicateM dirEntriesCount (parseIfEntry byteAlign)
-    mapM (decodeEntry byteAlign tiffHeaderStart location) ifdEntries
+data IfEntry = Tag ExifTag (Get ExifValue) | SubIFD TagLocation Int
 
-data IfEntry = IfEntry
-    {
-        entryTag :: !Word16,
-        entryFormat :: !Word16,
-        entryNoComponents :: !Int,
-        entryContents :: !Word32
-    } deriving Show
-
-parseIfEntry :: ByteAlign -> Get IfEntry
-parseIfEntry byteAlign = do
+-- | Parse a single IFD entry
+parseIfEntry :: ByteAlign -> TagLocation -> Get IfEntry
+parseIfEntry byteAlign ifdId = do
     tagNumber <- getWord16 byteAlign
-    dataFormat <- getWord16 byteAlign
-    numComponents <- getWord32 byteAlign
-    value <- getWord32 byteAlign
-    return IfEntry
-        {
-            entryTag = tagNumber,
-            entryFormat = dataFormat,
-            entryNoComponents = fromIntegral $ toInteger numComponents,
-            entryContents = value
-        }
+    format <- getWord16 byteAlign
+    numComponents <- fromIntegral <$> getWord32 byteAlign
+    content <- getWord32 byteAlign
+
+    return $ case (ifdId, tagNumber) of
+        (IFD0, 0x8769) -> SubIFD ExifSubIFD (fromIntegral content)
+        (IFD0, 0x8825) -> SubIFD GpsSubIFD  (fromIntegral content)
+        (_, tagId)     -> Tag (getExifTag ifdId tagId) (decodeEntry byteAlign format numComponents content)
 
 getExifTag :: TagLocation -> Word16 -> ExifTag
 getExifTag l v = fromMaybe (ExifTag l Nothing v showT) $ find (isSameTag l v) allExifTags
@@ -455,49 +431,36 @@ valueHandlers =
         undefinedValueHandler
     ]
 
-decodeEntry :: ByteAlign -> Int -> TagLocation -> IfEntry -> Get (ExifTag, ExifValue)
-decodeEntry byteAlign tiffHeaderStart location entry = do
-    let exifTag = getExifTag location $ entryTag entry
-    let contentsInt = fromIntegral $ toInteger $ entryContents entry
-    -- because I only know how to skip ahead, I hope the entries
-    -- are always sorted in order of the offsets to their values...
-    -- (maybe lookAhead could help here?)
-    tagValue <- case getHandler $ entryFormat entry of
-            Just handler -> decodeEntryWithHandler byteAlign tiffHeaderStart handler entry
-            Nothing -> return $ ExifUnknown (entryFormat entry) (entryNoComponents entry) contentsInt
-    return (exifTag, tagValue)
+decodeEntry :: ByteAlign -> Word16 -> Int -> Word32 -> Get ExifValue
+decodeEntry byteAlign format amount payload = do
+    case getHandler format of
+        Just handler | isInline handler -> return $ parseInline byteAlign handler amount (runPut $ putWord32 byteAlign payload)
+        Just handler                    -> parseOffset byteAlign handler amount payload
+        Nothing -> return $ ExifUnknown format amount (fromIntegral payload)
+    where
+        isInline handler = dataLength handler * amount <= 4
 
 getHandler :: Word16 -> Maybe ValueHandler
 getHandler typeId = find ((==typeId) . dataTypeId) valueHandlers
 
-decodeEntryWithHandler :: ByteAlign -> Int -> ValueHandler -> IfEntry -> Get ExifValue
-decodeEntryWithHandler byteAlign tiffHeaderStart handler entry =
-    if dataLength handler * entryNoComponents entry <= 4
-        then do
-            let inlineBs = runPut $ putWord32 byteAlign $ entryContents entry
-            return $ parseInline byteAlign handler entry inlineBs
-        else parseOffset byteAlign tiffHeaderStart handler entry
-
-parseInline :: ByteAlign -> ValueHandler -> IfEntry -> B.ByteString -> ExifValue
-parseInline byteAlign handler entry bytestring =
+parseInline :: ByteAlign -> ValueHandler -> Int -> B.ByteString -> ExifValue
+parseInline byteAlign handler amount bytestring =
     fromJust $ runMaybeGet getter bytestring
     where
-        getter = case entryNoComponents entry of
+        getter = case amount of
             1 -> readSingle handler byteAlign
-            _ -> readMany handler byteAlign $ entryNoComponents entry
+            _ -> readMany handler byteAlign amount
 
-parseOffset :: ByteAlign -> Int -> ValueHandler -> IfEntry -> Get ExifValue
-parseOffset byteAlign tiffHeaderStart handler entry = do
-    let contentsInt = fromIntegral $ toInteger $ entryContents entry
-    curPos <- fromIntegral <$> bytesRead
+parseOffset :: ByteAlign -> ValueHandler -> Int -> Word32 -> Get ExifValue
+parseOffset byteAlign handler amount offset = do
     -- this skip can take me quite far and I can't skip
     -- back with binary. So do the skip with a lookAhead.
     -- see https://github.com/emmanueltouzery/hsexif/issues/9
     lookAhead $ do
-        skip (contentsInt + tiffHeaderStart - curPos)
-        let bsLength = entryNoComponents entry * dataLength handler
+        skip (fromIntegral offset)
+        let bsLength = amount * dataLength handler
         bytestring <- getLazyByteString (fromIntegral bsLength)
-        return (parseInline byteAlign handler entry bytestring)
+        return (parseInline byteAlign handler amount bytestring)
 
 signedInt32ToInt :: Word32 -> Int
 signedInt32ToInt w = fromIntegral (fromIntegral w :: Int32)

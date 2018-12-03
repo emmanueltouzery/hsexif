@@ -55,6 +55,15 @@ main = do
         describe "partial exif data" $ testPartialExif partial
         describe "tiff file" $ testNef tiffExifData
 
+        describe "unusual data layouts" $ do
+            it "parses EXIF below IDF0" $ do
+                result <- parseFileExif "tests/test-exif-below-idf0.jpg"
+                case result of
+                    Left err -> assertBool ("Cannot parse: " ++ err) False
+                    Right tags -> do
+                        (Map.lookup dateTimeOriginal tags) `assertEqual'` (Just $ ExifText "2013:10:02 20:33:33") 
+
+
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
     assertEqual' (Left "Not a JPEG, TIFF, RAF, or TIFF-based raw file") (parseExif imageContents)
@@ -112,7 +121,6 @@ testBasic imageContents = it "parses a simple JPEG" $ do
                 (dateTime, ExifText "2014:04:10 20:14:20"),
                 (yCbCrPositioning, ExifNumber 2),
                 (fileSource, ExifUndefined "\ETX"),
-                (exifIfdOffset, ExifNumber 358),
                 (printImageMatching, ExifUndefined "PrintIM\NUL0300\NUL\NUL\ETX\NUL\STX\NUL\SOH\NUL\NUL\NUL\ETX\NUL\"\NUL\NUL\NUL\SOH\SOH\NUL\NUL\NUL\NUL\t\DC1\NUL\NUL\DLE'\NUL\NUL\v\SI\NUL\NUL\DLE'\NUL\NUL\151\ENQ\NUL\NUL\DLE'\NUL\NUL\176\b\NUL\NUL\DLE'\NUL\NUL\SOH\FS\NUL\NUL\DLE'\NUL\NUL^\STX\NUL\NUL\DLE'\NUL\NUL\139\NUL\NUL\NUL\DLE'\NUL\NUL\203\ETX\NUL\NUL\DLE'\NUL\NUL\229\ESC\NUL\NUL\DLE'\NUL\NUL")
             ]) (sort cleanedParsed)
     -- the sony maker note is 35k!! Just test its size and that it starts with "SONY DSC".
@@ -276,7 +284,6 @@ testNef (Just exifMap) = it "parses EXIF from a NEF file" $ do
                 (ExifTag IFD0 Nothing 0x14a (T.pack . show), ExifNumber 58880),
                 (referenceBlackWhite, ExifRationalList [(0,1),(255,1),(0,1),(255,1),(0,1),(255,1)]),
                 (copyright, ExifText "Copyright,NIKON CORPORATION,1999\0"),
-                (exifIfdOffset, ExifNumber 528),
                 (ExifTag IFD0 Nothing 0x9003 (T.pack . show), ExifText "2000:11:19 13:01:50"),
                 (ExifTag IFD0 Nothing 0x9216 (T.pack . show), ExifNumberList [1,0,0,0])
               ])

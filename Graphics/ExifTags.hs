@@ -109,8 +109,6 @@ yCbCrCoefficients       = exifIfd0Tag "yCbCrCoefficients" 0x0211 showT
 yCbCrPositioning        = exifIfd0Tag "yCbCrPositioning" 0x0213 ppYCbCrPositioning
 referenceBlackWhite     = exifIfd0Tag "referenceBlackWhite" 0x0214 showT
 copyright               = exifIfd0Tag "copyright" 0x8298 showT
-exifIfdOffset           = exifIfd0Tag "exifIfdOffset" 0x8769 showT
-gpsTagOffset            = exifIfd0Tag "gpsTagOffset" 0x8825 showT
 printImageMatching      = exifIfd0Tag "printImageMatching" 0xc4a5 ppUndef
 
 gpsVersionID            = exifGpsTag "gpsVersionID" 0x0000 showT
@@ -163,7 +161,7 @@ allExifTags = [exposureTime, fnumber, exposureProgram, isoSpeedRatings,
     imageUniqueId, exifInteroperabilityOffset, imageDescription,
     xResolution, yResolution, resolutionUnit, dateTime, whitePoint,
     primaryChromaticities, yCbCrPositioning, yCbCrCoefficients, referenceBlackWhite,
-    exifIfdOffset, printImageMatching, gpsTagOffset, artist,
+    printImageMatching, artist,
     gpsVersionID, gpsLatitudeRef, gpsLatitude, gpsLongitudeRef, gpsLongitude,
     gpsAltitudeRef, gpsAltitude, gpsTimeStamp, gpsSatellites, gpsStatus,
     gpsMeasureMode, gpsDop, gpsSpeedRef, gpsSpeed, gpsTrackRef, gpsTrack,
