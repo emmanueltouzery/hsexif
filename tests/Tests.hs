@@ -211,9 +211,7 @@ testPrettyPrint exifData stdExifData gps2ExifData = it "pretty prints many tags 
     checkPrettyPrinter gpsAltitude "2681.1111" gps2ExifData
     checkPrettyPrinter gpsTimeStamp "09:12:32.21" gps2ExifData
     checkPrettyPrinter userComment "Test Exif comment" exifData
-#if ICONV
     checkPrettyPrinter userComment "Test Exif commentčšž" stdExifData
-#endif
 
 checkPrettyPrinter :: ExifTag -> Text -> Maybe (Map ExifTag ExifValue) -> Assertion
 checkPrettyPrinter tag str exifData = assertEqual' (Just str) $ prettyPrinter tag <$> (exifData >>= Map.lookup tag)

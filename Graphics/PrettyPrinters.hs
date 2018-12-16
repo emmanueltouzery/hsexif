@@ -8,12 +8,9 @@ import qualified Data.Map as Map
 import qualified Data.ByteString as BS
 import Control.Arrow (first)
 import Data.Text.Encoding
+import Data.Text.Encoding.Error (lenientDecode)
 import qualified Data.Text as T
 import Data.Text (Text)
-#if ICONV
-import qualified Data.ByteString.Lazy as BL
-import Codec.Text.IConv (convertFuzzy, EncodingName, Fuzzy(Transliterate))
-#endif
 
 import Graphics.Types (ExifValue(..), formatAsFloatingPoint, formatAsNumber)
 
@@ -221,26 +218,16 @@ formatVersion fmt (ExifUndefined s) = T.pack $ printf fmt num
         asStr = T.unpack $ decodeUtf8 s
 formatVersion _ v@_ = unknown v
 
-#if ICONV
-
-getIconvEncodingName :: Text -> EncodingName
-getIconvEncodingName "JIS" = "SJIS"
-getIconvEncodingName x@_ = T.unpack x -- ASCII and UNICODE work out of the box.
-
 ppUserComment :: ExifValue -> Text
-ppUserComment (ExifUndefined v) = decodeUtf8 $ BL.toStrict $ convertFuzzy Transliterate encoding "UTF8" rawText
+ppUserComment (ExifUndefined v) = decode $ BS.drop 8 v
     where
-        encoding = getIconvEncodingName $ decodeUtf8 $ BS.take 8 v
-        rawText = BL.fromStrict $ BS.drop 8 v
+        encoding = decodeUtf8With lenientDecode $ BS.takeWhile (/= 0) $ BS.take 8 v
+        decode = case encoding of
+            "ASCII" -> decodeUtf8With lenientDecode
+            "UNICODE" -> decodeUtf16LEWith lenientDecode -- Should we use TIFF byteAlign here?
+            enc -> const $ T.concat [ "<Unsupported encoding: ", enc, ">" ]
+
 ppUserComment v@_ = unknown v
-
-#else
-
-ppUserComment :: ExifValue -> Text
-ppUserComment (ExifUndefined v) = decodeUtf8 $ BS.drop 8 v
-ppUserComment v@_ = unknown v
-
-#endif
 
 -- | Pretty printer for the FileSource tag
 ppFileSource :: ExifValue -> Text
