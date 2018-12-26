@@ -15,7 +15,7 @@ import Control.Monad (join)
 import Control.Applicative ( (<$>) )
 import Data.List
 
-import Graphics.Types (formatAsRational)
+import Graphics.Types (formatAsRational, ByteAlign(..))
 import Graphics.PrettyPrinters (ppExposureTime)
 import Graphics.HsExif
 import Graphics.Helpers
@@ -57,12 +57,13 @@ main = do
 
         describe "unusual data layouts" $ do
             it "parses EXIF below IDF0" $ do
-                result <- parseFileExif "tests/test-exif-below-idf0.jpg"
-                case result of
-                    Left err -> assertBool ("Cannot parse: " ++ err) False
-                    Right tags -> do
-                        (Map.lookup dateTimeOriginal tags) `assertEqual'` (Just $ ExifText "2013:10:02 20:33:33") 
+                tags <- parseFileExif' "tests/test-exif-below-idf0.jpg"
+                checkPrettyPrinter dateTimeOriginal "2013:10:02 20:33:33" (Just tags)
 
+        describe "big endian" $ do
+            it "parses UNICODE UserComment" $ do
+                tags <- parseFileExif' "tests/big-endian.jpg"
+                checkPrettyPrinter userComment "Тест" (Just tags)
 
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
@@ -82,10 +83,10 @@ testBasic imageContents = it "parses a simple JPEG" $ do
                 (fnumber, ExifRational 0 10),
                 (exposureProgram, ExifNumber 2),
                 (isoSpeedRatings, ExifNumber 1600),
-                (exifVersion, ExifUndefined "0230"),
+                (exifVersion, ExifUndefined "0230" Intel),
                 (dateTimeOriginal, ExifText "2013:10:02 20:33:33"),
                 (dateTimeDigitized, ExifText "2013:10:02 20:33:33"),
-                (componentConfiguration, ExifUndefined "\SOH\STX\ETX\NUL"),
+                (componentConfiguration, ExifUndefined "\SOH\STX\ETX\NUL" Intel),
                 (compressedBitsPerPixel, ExifRational 2 1),
                 (brightnessValue, ExifRational (-4226) 2560),
                 (exposureBiasValue, ExifRational 0 10),
@@ -94,9 +95,9 @@ testBasic imageContents = it "parses a simple JPEG" $ do
                 (lightSource, ExifNumber 0),
                 (flash, ExifNumber 24),
                 (focalLength, ExifRational 0 10),
-                (flashPixVersion, ExifUndefined "0100"),
+                (flashPixVersion, ExifUndefined "0100" Intel),
                 (colorSpace, ExifNumber 1),
-                (sceneType, ExifUndefined "\SOH"),
+                (sceneType, ExifUndefined "\SOH" Intel),
                 (exifImageWidth, ExifNumber 1),
                 (exifImageHeight, ExifNumber 1),
                 (exifInteroperabilityOffset, ExifNumber 36616),
@@ -117,11 +118,11 @@ testBasic imageContents = it "parses a simple JPEG" $ do
                 (xResolution, ExifRational 350 1),
                 (yResolution, ExifRational 350 1),
                 (resolutionUnit, ExifNumber 2),
-                (userComment, ExifUndefined "UNICODE\NULT\NULe\NULs\NULt\NUL \NULE\NULx\NULi\NULf\NUL \NULc\NULo\NULm\NULm\NULe\NULn\NULt\NUL\r\SOHa\SOH~\SOH"),
+                (userComment, ExifUndefined "UNICODE\NULT\NULe\NULs\NULt\NUL \NULE\NULx\NULi\NULf\NUL \NULc\NULo\NULm\NULm\NULe\NULn\NULt\NUL\r\SOHa\SOH~\SOH" Intel),
                 (dateTime, ExifText "2014:04:10 20:14:20"),
                 (yCbCrPositioning, ExifNumber 2),
-                (fileSource, ExifUndefined "\ETX"),
-                (printImageMatching, ExifUndefined "PrintIM\NUL0300\NUL\NUL\ETX\NUL\STX\NUL\SOH\NUL\NUL\NUL\ETX\NUL\"\NUL\NUL\NUL\SOH\SOH\NUL\NUL\NUL\NUL\t\DC1\NUL\NUL\DLE'\NUL\NUL\v\SI\NUL\NUL\DLE'\NUL\NUL\151\ENQ\NUL\NUL\DLE'\NUL\NUL\176\b\NUL\NUL\DLE'\NUL\NUL\SOH\FS\NUL\NUL\DLE'\NUL\NUL^\STX\NUL\NUL\DLE'\NUL\NUL\139\NUL\NUL\NUL\DLE'\NUL\NUL\203\ETX\NUL\NUL\DLE'\NUL\NUL\229\ESC\NUL\NUL\DLE'\NUL\NUL")
+                (fileSource, ExifUndefined "\ETX" Intel),
+                (printImageMatching, ExifUndefined "PrintIM\NUL0300\NUL\NUL\ETX\NUL\STX\NUL\SOH\NUL\NUL\NUL\ETX\NUL\"\NUL\NUL\NUL\SOH\SOH\NUL\NUL\NUL\NUL\t\DC1\NUL\NUL\DLE'\NUL\NUL\v\SI\NUL\NUL\DLE'\NUL\NUL\151\ENQ\NUL\NUL\DLE'\NUL\NUL\176\b\NUL\NUL\DLE'\NUL\NUL\SOH\FS\NUL\NUL\DLE'\NUL\NUL^\STX\NUL\NUL\DLE'\NUL\NUL\139\NUL\NUL\NUL\DLE'\NUL\NUL\203\ETX\NUL\NUL\DLE'\NUL\NUL\229\ESC\NUL\NUL\DLE'\NUL\NUL" Intel)
             ]) (sort cleanedParsed)
     -- the sony maker note is 35k!! Just test its size and that it starts with "SONY DSC".
     assertEqual' (Just 35692) (BS.length <$> makerNoteV)
@@ -133,7 +134,7 @@ testBasic imageContents = it "parses a simple JPEG" $ do
         makerNoteV = parsed >>= Map.lookup makerNote >>= getUndefMaybe
 
 getUndefMaybe :: ExifValue -> Maybe BS.ByteString
-getUndefMaybe (ExifUndefined x) = Just x
+getUndefMaybe (ExifUndefined x _) = Just x
 getUndefMaybe _ = Nothing
 
 testDate :: Maybe (Map ExifTag ExifValue) -> Spec
@@ -252,14 +253,14 @@ testNef (Just exifMap) = it "parses EXIF from a NEF file" $ do
                 (maxApertureValue, ExifRational 30 10),
                 (meteringMode, ExifNumber 5),
                 (focalLength, ExifRational 200 10),
-                (userComment, ExifUndefined $ BS.concat $ replicate 48 "\NUL"),
+                (userComment, ExifUndefined (BS.replicate 48 0) Motorola),
                 (subSecTime, ExifText "24"),
                 (subSecTimeOriginal, ExifText "24"),
                 (subSecTimeDigitized, ExifText "24"),
                 (sensingMethod, ExifNumber 2),
-                (fileSource, ExifUndefined "\ETX"),
-                (sceneType, ExifUndefined "\SOH"),
-                (cfaPattern, ExifUndefined "\NUL\STX\NUL\STX\STX\SOH\SOH\NUL"),
+                (fileSource, ExifUndefined "\ETX" Motorola),
+                (sceneType, ExifUndefined "\SOH" Motorola),
+                (cfaPattern, ExifUndefined "\NUL\STX\NUL\STX\STX\SOH\SOH\NUL" Motorola),
                 (ExifTag IFD0 Nothing 0xfe (T.pack . show), ExifNumber 1),
                 (ExifTag IFD0 Nothing 0x100 (T.pack . show), ExifNumber 160),
                 (ExifTag IFD0 Nothing 0x101 (T.pack . show), ExifNumber 120),
@@ -300,3 +301,10 @@ assertEqualListDebug = assertEqualListDebug' (0 :: Int)
 
 assertEqual' :: (Show a, Eq a) => a -> a -> Assertion
 assertEqual' = assertEqual "doesn't match"
+
+parseFileExif' :: FilePath -> IO (Map ExifTag ExifValue)
+parseFileExif' file = do
+    result <- parseFileExif file
+    case result of
+        Left err -> fail $ concat ["Cannot parse ", file, ": ", err]
+        Right tags -> return tags

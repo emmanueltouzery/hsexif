@@ -163,7 +163,7 @@ import Data.Bits ((.&.))
 import Control.Exception
 import System.IO
 
-import Graphics.Types (ExifValue(..), ExifTag(..), TagLocation(..), formatAsFloatingPoint)
+import Graphics.Types (ExifValue(..), ExifTag(..), TagLocation(..), ByteAlign(..), formatAsFloatingPoint)
 import Graphics.ExifTags
 import Graphics.Helpers
 
@@ -227,8 +227,6 @@ findAndParseExifBlockFuji = do
       - 4                      -- 4 bytes jpeg offset
       + 2                      -- findAndParseExifBlockJPEG expects 2 bytes skipped
     findAndParseExifBlockJPEG
-
-data ByteAlign = Intel | Motorola deriving (Eq)
 
 getWord16 :: ByteAlign -> Get Word16
 getWord16 Intel = getWord16le
@@ -382,7 +380,7 @@ undefinedValueHandler = ValueHandler
         dataTypeId = 7,
         dataLength = 1,
         readSingle = \ba -> readMany undefinedValueHandler ba 1,
-        readMany = \_ components -> ExifUndefined <$> getByteString components
+        readMany = \ba components -> ExifUndefined <$> getByteString components <*> pure ba
     }
 
 signedShortValueHandler = ValueHandler
