@@ -8,18 +8,15 @@ import qualified Data.Map as Map
 import qualified Data.ByteString as BS
 import Control.Arrow (first)
 import Data.Text.Encoding
+import Data.Text.Encoding.Error (lenientDecode)
 import qualified Data.Text as T
 import Data.Text (Text)
-#if ICONV
-import qualified Data.ByteString.Lazy as BL
-import Codec.Text.IConv (convertFuzzy, EncodingName, Fuzzy(Transliterate))
-#endif
 
-import Graphics.Types (ExifValue(..), formatAsFloatingPoint, formatAsNumber)
+import Graphics.Types (ExifValue(..), ByteAlign(..), formatAsFloatingPoint, formatAsNumber)
 
 -- ! Pretty print the undefined data
 ppUndef :: ExifValue -> Text
-ppUndef (ExifUndefined str) = T.pack (show $ BS.length str) `T.append` " bytes undefined data"
+ppUndef (ExifUndefined str _) = T.pack (show $ BS.length str) `T.append` " bytes undefined data"
 ppUndef _ = "undefined data"
 
 ppResolutionUnit :: ExifValue -> Text
@@ -202,7 +199,7 @@ componentMap :: Map Int Text
 componentMap = Map.fromList $ zip [0..] ["-", "Y", "Cb", "Cr", "R", "G", "B"]
 
 ppComponentConfiguration :: ExifValue -> Text
-ppComponentConfiguration (ExifUndefined bs) = T.concat $ map formatComponent numbers
+ppComponentConfiguration (ExifUndefined bs _) = T.concat $ map formatComponent numbers
     where
         numbers = fromIntegral <$> BS.unpack bs
         formatComponent = fromMaybe "?" . flip Map.lookup componentMap
@@ -215,36 +212,27 @@ ppExifVersion :: ExifValue -> Text
 ppExifVersion = formatVersion "Exif version %.2f"
 
 formatVersion :: String -> ExifValue -> Text
-formatVersion fmt (ExifUndefined s) = T.pack $ printf fmt num
+formatVersion fmt (ExifUndefined s _) = T.pack $ printf fmt num
     where
         num :: Float = read asStr / 100.0
         asStr = T.unpack $ decodeUtf8 s
 formatVersion _ v@_ = unknown v
 
-#if ICONV
-
-getIconvEncodingName :: Text -> EncodingName
-getIconvEncodingName "JIS" = "SJIS"
-getIconvEncodingName x@_ = T.unpack x -- ASCII and UNICODE work out of the box.
-
 ppUserComment :: ExifValue -> Text
-ppUserComment (ExifUndefined v) = decodeUtf8 $ BL.toStrict $ convertFuzzy Transliterate encoding "UTF8" rawText
+ppUserComment (ExifUndefined v byteAlign) = decode $ BS.drop 8 v
     where
-        encoding = getIconvEncodingName $ decodeUtf8 $ BS.take 8 v
-        rawText = BL.fromStrict $ BS.drop 8 v
+        encoding = decodeUtf8With lenientDecode $ BS.takeWhile (/= 0) $ BS.take 8 v
+        decode = case (encoding, byteAlign) of
+            ("ASCII", _) -> decodeUtf8With lenientDecode
+            ("UNICODE", Intel) -> decodeUtf16LEWith lenientDecode
+            ("UNICODE", Motorola) -> decodeUtf16BEWith lenientDecode
+            (enc, _) -> const $ T.concat [ "<Unsupported encoding: ", enc, ">" ]
+
 ppUserComment v@_ = unknown v
-
-#else
-
-ppUserComment :: ExifValue -> Text
-ppUserComment (ExifUndefined v) = decodeUtf8 $ BS.drop 8 v
-ppUserComment v@_ = unknown v
-
-#endif
 
 -- | Pretty printer for the FileSource tag
 ppFileSource :: ExifValue -> Text
-ppFileSource (ExifUndefined v)
+ppFileSource (ExifUndefined v _)
     | BS.head v == 3 = "DSC"
     | otherwise      = "(unknown)"
 ppFileSource v = unknown v

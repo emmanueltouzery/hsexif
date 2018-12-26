@@ -26,7 +26,7 @@ data ExifValue = ExifNumber !Int
     -- Sometimes we're used to it as rational (exposition time: 1/160),
     -- sometimes as float (exposure compensation, we rather think -0.75)
     -- 'show' will display it as 1/160.
-    | ExifUndefined !BS.ByteString
+    | ExifUndefined !BS.ByteString ByteAlign
     -- ^ The undefined type in EXIF means that the contents are not
     -- specified and up to the manufacturer. In effect it's exactly
     -- a bytestring. Sometimes it's text with ASCII or UNICODE at the
@@ -45,7 +45,13 @@ instance Show ExifValue where
         ++ " count: " ++ show c ++ " value: " ++ show v
     show (ExifNumberList l) = show l
     show (ExifRationalList l) = show l
-    show (ExifUndefined bs) = show bs
+    show (ExifUndefined bs _) = show bs
+
+
+-- | Byte alignment (endianness) specified in the TIFF header
+data ByteAlign = Intel -- ^ Little endian
+               | Motorola -- ^ Big endian
+    deriving (Eq, Ord)
 
 -- | Location of the tag in the JPG file structure.
 -- Normally you don't need to fiddle with this,
