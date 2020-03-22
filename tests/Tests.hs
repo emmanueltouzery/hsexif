@@ -61,7 +61,13 @@ main = do
                 case result of
                     Left err -> assertBool ("Cannot parse: " ++ err) False
                     Right tags -> do
-                        (Map.lookup dateTimeOriginal tags) `assertEqual'` (Just $ ExifText "2013:10:02 20:33:33") 
+                        (Map.lookup dateTimeOriginal tags) `assertEqual'` (Just $ ExifText "2013:10:02 20:33:33")
+            it "xmp block before the exif" $ do
+                result <- parseFileExif "tests/xmp-before-exif-truncated.jpg" -- the file is truncated. original is at: https://github.com/emmanueltouzery/hsexif/issues/17
+                case result of
+                    Left err -> assertBool ("Cannot parse: " ++ err) False
+                    Right tags -> do
+                        (Map.lookup dateTimeOriginal tags) `assertEqual'` (Just $ ExifText "2020:03:04 17:14:20")
 
 
 testNotAJpeg :: B.ByteString -> Spec

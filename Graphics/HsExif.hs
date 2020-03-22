@@ -203,7 +203,10 @@ findAndParseExifBlockJPEG = do
     markerNumber <- getWord16be
     dataSize <- fromIntegral . toInteger <$> getWord16be
     case markerNumber of
-        0xffe1 -> parseExifBlock
+        0xffe1 -> tryParseExifBlock >>= \case
+          Right exif -> pure exif
+          -- try will fail for XMP content for instance
+          Left bytesReadByTry -> skip (dataSize - 2 - bytesReadByTry) >> findAndParseExifBlockJPEG
         -- ffda is Start Of Stream => image
         -- I expect no more EXIF data after this point.
         0xffda -> fail "No EXIF in JPEG"
@@ -242,13 +245,14 @@ putWord32 :: ByteAlign -> Word32 -> Put
 putWord32 Intel = putWord32le
 putWord32 Motorola = putWord32be
 
-parseExifBlock :: Get (Map ExifTag ExifValue)
-parseExifBlock = do
+-- return either the exif info, or the number of bytes read.
+tryParseExifBlock :: Get (Either Int (Map ExifTag ExifValue))
+tryParseExifBlock = do
     header <- getByteString 4
     nul <- toInteger <$> getWord16be
-    unless (header == Char8.pack "Exif" && nul == 0)
-        $ fail "invalid EXIF header"
-    parseTiff
+    if header == Char8.pack "Exif" && nul == 0
+      then Right <$> parseTiff
+      else pure (Left 6) -- read 6 bytes: 4+2
 
 parseTiff :: Get (Map ExifTag ExifValue)
 parseTiff = do
