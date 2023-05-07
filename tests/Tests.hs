@@ -12,13 +12,13 @@ import Data.Time.LocalTime
 import Data.Time.Calendar
 import Data.Char (chr)
 import Control.Monad (join)
-import Control.Applicative ( (<$>) )
 import Data.List
 
 import Graphics.Types (formatAsRational)
 import Graphics.PrettyPrinters (ppExposureTime)
 import Graphics.HsExif
 import Graphics.Helpers
+import Graphics.ExifTags
 
 main :: IO ()
 main = do
@@ -30,6 +30,7 @@ main = do
     gps3 <- B.readFile "tests/gps3.jpg"
     partial <- B.readFile "tests/partial_exif.jpg"
     tiff <- B.readFile "tests/RAW_NIKON_D1.NEF"
+    appleHEIC <- B.readFile "tests/Apple_iPhone14.HEIC"
     let parseExifM   = hush . parseExif
     let exifData     = parseExifM imageContents
     let gpsExifData  = parseExifM gps
@@ -54,6 +55,7 @@ main = do
         describe "flash fired" $ testFlashFired exifData
         describe "partial exif data" $ testPartialExif partial
         describe "tiff file" $ testNef tiffExifData
+        describe "Apple HEIC file" $ testHEIC appleHEIC
 
         describe "unusual data layouts" $ do
             it "parses EXIF below IDF0" $ do
@@ -68,7 +70,6 @@ main = do
                     Left err -> assertBool ("Cannot parse: " ++ err) False
                     Right tags -> do
                         (Map.lookup dateTimeOriginal tags) `assertEqual'` (Just $ ExifText "2020:03:04 17:14:20")
-
 
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
@@ -308,3 +309,70 @@ assertEqualListDebug = assertEqualListDebug' (0 :: Int)
 
 assertEqual' :: (Show a, Eq a) => a -> a -> Assertion
 assertEqual' = assertEqual "doesn't match"
+
+testHEIC :: B.ByteString -> Spec
+testHEIC imageContents = it "parses an Apple HEIC" $ do
+    case cleanedParsedM of
+        Nothing -> assertBool "Parsing fails" False
+        Just cleanedParsed -> do
+            assertEqualListDebug (sort expected) (sort cleanedParsed)
+
+            assertEqual'
+                (Just "\NUL\NUL\NUL\NUL\NUL\NUL\NUL\SOH")
+                (take 8 . fmap (chr . fromIntegral) . BS.unpack <$> compositeImageExposureTimesV)
+
+            assertEqual' (Just 1514) (BS.length <$> makerNoteV)
+
+    where
+        parsed = hush $ parseExif imageContents
+        tricky = [compositeImageExposureTimes, makerNote]
+        cleanedParsedM = filter ((`notElem` tricky) . fst) <$> (Map.toList <$> parsed)
+
+        makerNoteV                   = parsed >>= Map.lookup makerNote                   >>= getUndefMaybe
+        compositeImageExposureTimesV = parsed >>= Map.lookup compositeImageExposureTimes >>= getUndefMaybe
+
+        expected =
+            [ (hostComputer, ExifText "iPhone 14 Pro Max")
+            , (exposureTime, ExifRational 1 4)
+            , (fnumber, ExifRational 11 5)
+            , (exposureProgram, ExifNumber 2)
+            , (isoSpeedRatings, ExifNumber 2500)
+            , (exifVersion, ExifUndefined "0232")
+            , (dateTimeOriginal, ExifText "2023:05:07 19:21:26")
+            , (dateTimeDigitized, ExifText "2023:05:07 19:21:26")
+            , (offsetTime, ExifText "+08:00")
+            , (offsetTimeDigitized, ExifText "+08:00")
+            , (offsetTimeOriginal, ExifText "+08:00")
+            , (shutterSpeedValue, ExifRational 17962 9509)
+            , (apertureValue, ExifRational 193685 85136)
+            , (brightnessValue, ExifRational (-77686) 13317)
+            , (exposureBiasValue, ExifRational 5 128)
+            , (meteringMode, ExifNumber 5)
+            , (flash, ExifNumber 16)
+            , (focalLength, ExifRational 111 50)
+            , (subjectArea, ExifNumberList [2010,1508,2211,1324])
+            , (subSecTimeOriginal, ExifText "458")
+            , (subSecTimeDigitized, ExifText "458")
+            , (colorSpace, ExifNumber 65535)
+            , (exifImageWidth, ExifNumber 4032)
+            , (exifImageHeight, ExifNumber 3024)
+            , (sensingMethod, ExifNumber 2)
+            , (sceneType, ExifUndefined "\SOH")
+            , (exposureMode, ExifNumber 0)
+            , (whiteBalance, ExifNumber 0)
+            , (digitalZoomRatio, ExifRational 126 71)
+            , (focalLengthIn35mmFilm, ExifNumber 24)
+            , (lensSpecification, ExifRationalList [(111,50),(9,1),(1244236,699009),(14,5)])
+            , (lensMake, ExifText "Apple")
+            , (lensModel, ExifText "iPhone 14 Pro Max back triple camera 2.22mm f/2.2")
+            , (compositeImage, ExifNumber 3)
+            , (compositeImageCount, ExifNumberList [13, 0])
+            , (make, ExifText "Apple")
+            , (model, ExifText "iPhone 14 Pro Max")
+            , (orientation, ExifNumber 6)
+            , (xResolution, ExifRational 72 1)
+            , (yResolution, ExifRational 72 1)
+            , (resolutionUnit, ExifNumber 2)
+            , (software, ExifText "16.4.1")
+            , (dateTime, ExifText "2023:05:07 19:21:26")
+            ]
