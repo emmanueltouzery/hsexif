@@ -143,6 +143,24 @@ gpsAreaInformation      = exifGpsTag "gpsAreaInformation" 0x001c showT
 gpsDateStamp            = exifGpsTag "gpsDateStamp" 0x001d ppGpsDateStamp
 gpsDifferential         = exifGpsTag "gpsDifferential" 0x001e showT
 
+offsetTime = exifSubIfdTag "offsetTime" 0x9010 showT
+
+offsetTimeDigitized = exifSubIfdTag "Offset Time Digitized" 0x9012 showT
+offsetTimeOriginal = exifSubIfdTag "Offset Time Original" 0x9011 showT
+
+lensSpecification = exifSubIfdTag "lensSpecification" 0xa432 showT -- also called lensInfo
+
+lensMake = exifSubIfdTag "lensMake" 0xa433 showT
+lensModel = exifSubIfdTag "lensModel" 0xa434 showT
+
+compositeImage = exifSubIfdTag "compositeImage" 0xa460 showT
+
+compositeImageCount = exifSubIfdTag "compositeImageCount" 0xa461 showT
+
+compositeImageExposureTimes = exifSubIfdTag "compositeImageExposureTimes" 0xa462 showT
+
+hostComputer = exifIfd0Tag "hostComputer" 0x13c showT
+
 allExifTags :: [ExifTag]
 allExifTags = [exposureTime, fnumber, exposureProgram, isoSpeedRatings,
     exifVersion, dateTimeOriginal, dateTimeDigitized, componentConfiguration,
@@ -168,7 +186,10 @@ allExifTags = [exposureTime, fnumber, exposureProgram, isoSpeedRatings,
     gpsImgDirectionRef, gpsImgDirection, gpsMapDatum, gpsDestLatitudeRef,
     gpsDestLatitude, gpsDestLongitudeRef, gpsDestLongitude, gpsDestBearingRef,
     gpsDestBearing, gpsDestDistanceRef, gpsDestDistance, gpsProcessingMethod,
-    gpsAreaInformation, gpsDateStamp, gpsDifferential]
+    gpsAreaInformation, gpsDateStamp, gpsDifferential,
+    offsetTime, offsetTimeDigitized, offsetTimeOriginal, lensSpecification,
+    lensMake, lensModel, compositeImage, compositeImageCount, compositeImageExposureTimes,
+    hostComputer]
 
 -- | Extract the GPS latitude and longitude where the picture was taken
 -- (if it is present in the EXIF)

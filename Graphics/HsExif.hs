@@ -147,7 +147,6 @@ import Data.Binary.Put
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString as BS
 import Control.Monad
-import Control.Applicative ( (<$>) )
 import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString.Internal (w2c)
 import Data.Word
@@ -186,6 +185,15 @@ parseExif = runEitherGet getExif
 getExif :: Get (Map ExifTag ExifValue)
 getExif = do
     firstBytes <- lookAhead $ (,) <$> getWord16be <*> getWord16be
+
+    ftypheic <- lookAhead $ do
+                    skip 4
+                    ftyp <- getByteString 4
+                    skip 8
+                    mif <- getByteString 4
+                    -- https://github.com/kamadak/exif-rs/blob/b279fa00a80a1136c10e2c6b3980a040adc92f05/src/isobmff.rs#L33-L37
+                    return $ ftyp == "ftyp" && mif `elem` ["mif1", "msf1"]
+
     case firstBytes of
         (0xffd8,_ ) -> getWord16be >> findAndParseExifBlockJPEG
         (0x4d4d,0x002A) -> findAndParseExifBlockTiff  -- TIFF big-endian: DNG, Nikon
@@ -196,7 +204,9 @@ getExif = do
         (0x4949,0x5500) -> findAndParseExifBlockTiff  -- Panasonic RW2
         -- Fuji RAF files use a custom format with an embedded JPEG preview containing the EXIF data
         (0x4655,0x4A49) -> findAndParseExifBlockFuji  -- Fuji RAF
-        _           -> fail "Not a JPEG, TIFF, RAF, or TIFF-based raw file"
+        _ -> if ftypheic
+                then findAndParseExifBlockHEIC
+                else fail "Not a JPEG, TIFF, RAF, or TIFF-based raw file"
 
 findAndParseExifBlockJPEG :: Get (Map ExifTag ExifValue)
 findAndParseExifBlockJPEG = do
@@ -230,6 +240,14 @@ findAndParseExifBlockFuji = do
       - 4                      -- 4 bytes jpeg offset
       + 2                      -- findAndParseExifBlockJPEG expects 2 bytes skipped
     findAndParseExifBlockJPEG
+
+findAndParseExifBlockHEIC :: Get (Map ExifTag ExifValue)
+findAndParseExifBlockHEIC = do
+    (e, nul, aligned) <- lookAhead $ (,,) <$> getByteString 4 <*> (toInteger <$> getWord16be) <*> getByteString 2
+
+    if e == "Exif" && nul == 0 && aligned `elem` ["MM", "II"]
+        then skip 6 >> parseTiff
+        else skip 1 >> findAndParseExifBlockHEIC
 
 data ByteAlign = Intel | Motorola deriving (Eq)
 
@@ -280,7 +298,7 @@ parseIfd byteAlign ifdId offset = do
         skip offset
         dirEntriesCount <- fromIntegral <$> getWord16 byteAlign
         replicateM dirEntriesCount (parseIfEntry byteAlign ifdId)
-    
+
     concat <$> mapM (entryTags byteAlign) entries
 
 -- | Convert IFD entries to tags, reading sub-IFDs
