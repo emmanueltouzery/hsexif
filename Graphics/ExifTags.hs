@@ -92,6 +92,15 @@ deviceSettingDescription= exifSubIfdTag "deviceSettingDescription" 0xa40b showT
 subjectDistanceRange    = exifSubIfdTag "subjectDistanceRange" 0xa40c ppSubjectDistanceRange
 imageUniqueId           = exifSubIfdTag "imageUniqueId" 0xa420 showT
 exifInteroperabilityOffset=exifSubIfdTag "exifInteroperabilityOffset" 0xa005 showT
+offsetTime                  = exifSubIfdTag "offsetTime" 0x9010 showT
+offsetTimeDigitized         = exifSubIfdTag "Offset Time Digitized" 0x9012 showT
+offsetTimeOriginal          = exifSubIfdTag "Offset Time Original" 0x9011 showT
+lensSpecification           = exifSubIfdTag "lensSpecification" 0xa432 showT -- also called lensInfo
+lensMake                    = exifSubIfdTag "lensMake" 0xa433 showT
+lensModel                   = exifSubIfdTag "lensModel" 0xa434 showT
+compositeImage              = exifSubIfdTag "compositeImage" 0xa460 showT
+compositeImageCount         = exifSubIfdTag "compositeImageCount" 0xa461 showT
+compositeImageExposureTimes = exifSubIfdTag "compositeImageExposureTimes" 0xa462 showT
 
 imageDescription        = exifIfd0Tag "imageDescription" 0x010e showT
 make                    = exifIfd0Tag "make" 0x010f showT
@@ -110,6 +119,7 @@ yCbCrPositioning        = exifIfd0Tag "yCbCrPositioning" 0x0213 ppYCbCrPositioni
 referenceBlackWhite     = exifIfd0Tag "referenceBlackWhite" 0x0214 showT
 copyright               = exifIfd0Tag "copyright" 0x8298 showT
 printImageMatching      = exifIfd0Tag "printImageMatching" 0xc4a5 ppUndef
+hostComputer            = exifIfd0Tag "hostComputer" 0x13c showT
 
 gpsVersionID            = exifGpsTag "gpsVersionID" 0x0000 showT
 gpsLatitudeRef          = exifGpsTag "gpsLatitudeRef" 0x0001 ppGpsLatitudeRef
@@ -142,24 +152,6 @@ gpsProcessingMethod     = exifGpsTag "gpsProcessingMethod" 0x001b showT
 gpsAreaInformation      = exifGpsTag "gpsAreaInformation" 0x001c showT
 gpsDateStamp            = exifGpsTag "gpsDateStamp" 0x001d ppGpsDateStamp
 gpsDifferential         = exifGpsTag "gpsDifferential" 0x001e showT
-
-offsetTime = exifSubIfdTag "offsetTime" 0x9010 showT
-
-offsetTimeDigitized = exifSubIfdTag "Offset Time Digitized" 0x9012 showT
-offsetTimeOriginal = exifSubIfdTag "Offset Time Original" 0x9011 showT
-
-lensSpecification = exifSubIfdTag "lensSpecification" 0xa432 showT -- also called lensInfo
-
-lensMake = exifSubIfdTag "lensMake" 0xa433 showT
-lensModel = exifSubIfdTag "lensModel" 0xa434 showT
-
-compositeImage = exifSubIfdTag "compositeImage" 0xa460 showT
-
-compositeImageCount = exifSubIfdTag "compositeImageCount" 0xa461 showT
-
-compositeImageExposureTimes = exifSubIfdTag "compositeImageExposureTimes" 0xa462 showT
-
-hostComputer = exifIfd0Tag "hostComputer" 0x13c showT
 
 allExifTags :: [ExifTag]
 allExifTags = [exposureTime, fnumber, exposureProgram, isoSpeedRatings,
