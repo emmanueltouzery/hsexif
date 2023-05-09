@@ -52,7 +52,7 @@ ppApexAperture v = T.pack (printf "f/%.1f" fnumber)
 ppExposureTime :: ExifValue -> Text
 ppExposureTime v@(ExifRational num den)
            = let seconds = fromIntegral num / (fromIntegral den :: Double)
-                 value | seconds <= 0.25 && seconds > 0 = "1/" ++ show ((round (1 / seconds)) :: Int)
+                 value | seconds <= 0.25 && seconds > 0 = "1/" ++ show (round (1 / seconds) :: Int)
                        | otherwise = formatAsNumber 1 v
              in T.append (T.pack value) " sec."
 ppExposureTime v = T.pack (show v)
@@ -206,7 +206,7 @@ ppComponentConfiguration (ExifUndefined bs) = T.concat $ map formatComponent num
     where
         numbers = fromIntegral <$> BS.unpack bs
         formatComponent = fromMaybe "?" . flip Map.lookup componentMap
-ppComponentConfiguration v@_ = unknown v
+ppComponentConfiguration v = unknown v
 
 ppFlashPixVersion :: ExifValue -> Text
 ppFlashPixVersion = formatVersion "FlashPix version %.1f"
@@ -219,26 +219,26 @@ formatVersion fmt (ExifUndefined s) = T.pack $ printf fmt num
     where
         num :: Float = read asStr / 100.0
         asStr = T.unpack $ decodeUtf8 s
-formatVersion _ v@_ = unknown v
+formatVersion _ v = unknown v
 
 #if ICONV
 
 getIconvEncodingName :: Text -> EncodingName
 getIconvEncodingName "JIS" = "SJIS"
-getIconvEncodingName x@_ = T.unpack x -- ASCII and UNICODE work out of the box.
+getIconvEncodingName x = T.unpack x -- ASCII and UNICODE work out of the box.
 
 ppUserComment :: ExifValue -> Text
 ppUserComment (ExifUndefined v) = decodeUtf8 $ BL.toStrict $ convertFuzzy Transliterate encoding "UTF8" rawText
     where
         encoding = getIconvEncodingName $ decodeUtf8 $ BS.take 8 v
         rawText = BL.fromStrict $ BS.drop 8 v
-ppUserComment v@_ = unknown v
+ppUserComment v = unknown v
 
 #else
 
 ppUserComment :: ExifValue -> Text
 ppUserComment (ExifUndefined v) = decodeUtf8 $ BS.drop 8 v
-ppUserComment v@_ = unknown v
+ppUserComment v = unknown v
 
 #endif
 
