@@ -35,7 +35,7 @@ asFpWithFormat fmt = T.pack . printf fmt . formatAsFloatingPoint 2
 showT :: Show a => a -> Text
 showT = T.pack . show
 
-exposureTime            = exifSubIfdTag "exposureTime" 0x829a $ ppExposureTime
+exposureTime            = exifSubIfdTag "exposureTime" 0x829a ppExposureTime
 fnumber                 = exifSubIfdTag "fnumber" 0x829d ppAperture
 exposureProgram         = exifSubIfdTag "exposureProgram" 0x8822 ppExposureProgram
 spectralSensitivity     = exifSubIfdTag "spectralSensitivity" 0x8824 showT
@@ -46,7 +46,7 @@ dateTimeOriginal        = exifSubIfdTag "dateTimeOriginal" 0x9003 showT
 dateTimeDigitized       = exifSubIfdTag "dateTimeDigitized" 0x9004 showT
 componentConfiguration  = exifSubIfdTag "componentConfiguration" 0x9101 ppComponentConfiguration
 compressedBitsPerPixel  = exifSubIfdTag "compressedBitsPerPixel" 0x9102 (T.pack . formatAsFloatingPoint 2)
-shutterSpeedValue       = exifSubIfdTag "shutterSpeedValue" 0x9201 $ ppExposureTime
+shutterSpeedValue       = exifSubIfdTag "shutterSpeedValue" 0x9201 ppExposureTime
 apertureValue           = exifSubIfdTag "apertureValue" 0x9202 ppApexAperture
 brightnessValue         = exifSubIfdTag "brightnessValue" 0x9203 $ asFpWithFormat "%s EV"
 exposureBiasValue       = exifSubIfdTag "exposureBiasValue" 0x9204 $ asFpWithFormat "%s EV"
@@ -259,9 +259,9 @@ ppGpsDateStamp exifV = maybe "invalid" (T.pack . formatDay . toGregorian) $ pars
 ppGpsLatitudeRef :: ExifValue -> Text
 ppGpsLatitudeRef (ExifText "N") = "North"
 ppGpsLatitudeRef (ExifText "S") = "South"
-ppGpsLatitudeRef v@_ = T.pack $ "Invalid latitude: " ++ show v
+ppGpsLatitudeRef v = T.pack $ "Invalid latitude: " ++ show v
 
 ppGpsLongitudeRef :: ExifValue -> Text
 ppGpsLongitudeRef (ExifText "E") = "East"
 ppGpsLongitudeRef (ExifText "W") = "West"
-ppGpsLongitudeRef v@_ = T.pack $ "Invalid longitude: " ++ show v
+ppGpsLongitudeRef v = T.pack $ "Invalid longitude: " ++ show v

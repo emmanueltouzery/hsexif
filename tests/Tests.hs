@@ -11,7 +11,6 @@ import Data.Map (Map)
 import Data.Time.LocalTime
 import Data.Time.Calendar
 import Data.Char (chr)
-import Control.Monad (join)
 import Data.List
 
 import Graphics.Types (formatAsRational)
@@ -63,13 +62,13 @@ main = do
                 case result of
                     Left err -> assertBool ("Cannot parse: " ++ err) False
                     Right tags -> do
-                        (Map.lookup dateTimeOriginal tags) `assertEqual'` (Just $ ExifText "2013:10:02 20:33:33")
+                        Map.lookup dateTimeOriginal tags `assertEqual'` Just (ExifText "2013:10:02 20:33:33")
             it "xmp block before the exif" $ do
                 result <- parseFileExif "tests/xmp-before-exif-truncated.jpg" -- the file is truncated. original is at: https://github.com/emmanueltouzery/hsexif/issues/17
                 case result of
                     Left err -> assertBool ("Cannot parse: " ++ err) False
                     Right tags -> do
-                        (Map.lookup dateTimeOriginal tags) `assertEqual'` (Just $ ExifText "2020:03:04 17:14:20")
+                        Map.lookup dateTimeOriginal tags `assertEqual'` Just (ExifText "2020:03:04 17:14:20")
 
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
@@ -132,7 +131,7 @@ testBasic imageContents = it "parses a simple JPEG" $ do
             ]) (sort cleanedParsed)
     -- the sony maker note is 35k!! Just test its size and that it starts with "SONY DSC".
     assertEqual' (Just 35692) (BS.length <$> makerNoteV)
-    assertEqual' (Just "SONY DSC") (take 8 <$> fmap (chr . fromIntegral) <$> BS.unpack <$> makerNoteV)
+    assertEqual' (Just "SONY DSC") (take 8 . fmap (chr . fromIntegral) . BS.unpack <$> makerNoteV)
     where
         -- the makerNote is HUGE. so test it separately.
         parsed = hush $ parseExif imageContents
@@ -167,7 +166,7 @@ testReadGpsLatLong exifData xLat xLong = it "reads gps latitude longitude" $ do
 
 testReadGpsLatLongNoData :: Maybe (Map ExifTag ExifValue) -> Spec
 testReadGpsLatLongNoData exifData = it "reads gps latitude longitude" $
-    assertEqual' Nothing $ join $ getGpsLatitudeLongitude <$> exifData
+    assertEqual' Nothing $ getGpsLatitudeLongitude =<< exifData
 
 testFormatAsFloatingPoint :: Spec
 testFormatAsFloatingPoint = it "properly formats as floating point" $ do

@@ -176,7 +176,7 @@ import Graphics.Helpers
 -- The reading is strict to avoid file handle exhaustion on a recursive
 -- reading of a directory tree.
 parseFileExif :: FilePath -> IO (Either String (Map ExifTag ExifValue))
-parseFileExif filename = withFile filename ReadMode ((evaluate =<<) . fmap parseExif . B.hGetContents)
+parseFileExif filename = withFile filename ReadMode ((evaluate . parseExif) <=< B.hGetContents)
 
 -- | Read EXIF data from a lazy bytestring.
 parseExif :: B.ByteString -> Either String (Map ExifTag ExifValue)
@@ -365,7 +365,7 @@ unsignedShortValueHandler = ValueHandler
     {
         dataTypeId = 3,
         dataLength = 2,
-        readSingle = liftM (ExifNumber . fromIntegral) . getWord16,
+        readSingle = fmap (ExifNumber . fromIntegral) . getWord16,
         readMany = readNumberList getWord16
     }
 
@@ -373,7 +373,7 @@ unsignedLongValueHandler = ValueHandler
     {
         dataTypeId = 4,
         dataLength = 4,
-        readSingle = liftM (ExifNumber . fromIntegral) . getWord32,
+        readSingle = fmap (ExifNumber . fromIntegral) . getWord32,
         readMany = readNumberList getWord32
     }
 
@@ -396,7 +396,7 @@ signedByteValueHandler = ValueHandler
         dataTypeId = 6,
         dataLength = 1,
         readSingle = \_ -> ExifNumber . signedInt8ToInt <$> getWord8,
-        readMany = readNumberList (liftM signedInt8ToInt . const getWord8)
+        readMany = readNumberList (fmap signedInt8ToInt . const getWord8)
     }
 
 undefinedValueHandler = ValueHandler
@@ -411,16 +411,16 @@ signedShortValueHandler = ValueHandler
     {
         dataTypeId = 8,
         dataLength = 2,
-        readSingle = liftM (ExifNumber . signedInt16ToInt) . getWord16,
-        readMany = readNumberList (liftM signedInt16ToInt . getWord16)
+        readSingle = fmap (ExifNumber . signedInt16ToInt) . getWord16,
+        readMany = readNumberList (fmap signedInt16ToInt . getWord16)
     }
 
 signedLongValueHandler = ValueHandler
     {
         dataTypeId = 9,
         dataLength = 4,
-        readSingle = liftM (ExifNumber . signedInt32ToInt) . getWord32,
-        readMany = readNumberList (liftM signedInt32ToInt . getWord32)
+        readSingle = fmap (ExifNumber . signedInt32ToInt) . getWord32,
+        readMany = readNumberList (fmap signedInt32ToInt . getWord32)
     }
 
 readSignedRationalContents :: (Int -> Int -> a) -> ByteAlign -> Get a

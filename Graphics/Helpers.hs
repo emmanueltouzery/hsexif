@@ -3,7 +3,6 @@ module Graphics.Helpers where
 import Data.Binary.Get
 import qualified Data.ByteString.Lazy as B
 import Control.Monad (replicateM)
-import Control.Applicative ( (<$>) )
 import Data.Char (chr, isDigit, ord)
 
 -- | Suppress the 'Left' value of an 'Either'
