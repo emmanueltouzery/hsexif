@@ -8,6 +8,7 @@ module Graphics.HsExif (
     -- * Main functions
     parseFileExif,
     parseExif,
+    parseExifRaw,
 
     -- * Higher-level helper functions
     readExifDateTime,
@@ -271,6 +272,10 @@ tryParseExifBlock = do
     if header == Char8.pack "Exif" && nul == 0
       then Right <$> parseTiff
       else pure (Left 6) -- read 6 bytes: 4+2
+
+-- | Parse EXIF data from an already extracted header ByteString
+parseExifRaw :: B.ByteString -> Either String (Map ExifTag ExifValue)
+parseExifRaw = runEitherGet parseTiff
 
 parseTiff :: Get (Map ExifTag ExifValue)
 parseTiff = do

@@ -69,6 +69,11 @@ main = do
                     Left err -> assertBool ("Cannot parse: " ++ err) False
                     Right tags -> do
                         Map.lookup dateTimeOriginal tags `assertEqual'` Just (ExifText "2020:03:04 17:14:20")
+        describe "raw exif data" $ testRaw $ B.pack
+          [ 0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x0E, 0x01, 0x02, 0x00, 0x0C, 0x00,
+            0x00, 0x00, 0x1A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x20,
+            0x57, 0x6F, 0x72, 0x6C, 0x64, 0x00
+          ]
 
 testNotAJpeg :: B.ByteString -> Spec
 testNotAJpeg imageContents = it "returns empty list if not a JPEG" $
@@ -309,6 +314,7 @@ assertEqualListDebug = assertEqualListDebug' (0 :: Int)
 assertEqual' :: (Show a, Eq a) => a -> a -> Assertion
 assertEqual' = assertEqual "doesn't match"
 
+
 testHEIC :: B.ByteString -> Spec
 testHEIC imageContents = it "parses an Apple HEIC" $ do
     case cleanedParsedM of
@@ -375,3 +381,13 @@ testHEIC imageContents = it "parses an Apple HEIC" $ do
             , (software, ExifText "16.4.1")
             , (dateTime, ExifText "2023:05:07 19:21:26")
             ]
+
+testRaw :: B.ByteString -> Spec
+testRaw rawHeader = it "Parses raw header data" $ do
+    case cleanedParsedM of
+      Nothing -> assertBool "Parsing fails" False
+      Just cleanedParsed -> do
+        assertEqualListDebug expected cleanedParsed
+  where
+    cleanedParsedM = Map.toList <$> hush (parseExifRaw rawHeader)
+    expected = [ (imageDescription, ExifText "Hello World") ]
